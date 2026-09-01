@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { createUserAction, updateUserAction } from "@/app/(app)/users/actions";
 import { useProfile } from "@/components/providers/profile-provider";
+import { EditRowButton } from "@/components/shared/edit-row-actions";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -173,7 +174,7 @@ export function UsersPageClient() {
               <TableHead>Display Name</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="w-16" />
+              <TableHead className="w-24">Thao tác</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -229,9 +230,8 @@ export function UsersPageClient() {
                   </TableCell>
                   <TableCell>
                     {user.profile ? (
-                      <Button
-                        size="icon-xs"
-                        variant="ghost"
+                      <EditRowButton
+                        label={user.email}
                         onClick={() =>
                           setEditUser({
                             id: user.id,
@@ -239,10 +239,7 @@ export function UsersPageClient() {
                             display_name: user.profile?.display_name ?? "",
                           })
                         }
-                        aria-label={`Sửa ${user.email}`}
-                      >
-                        <Pencil />
-                      </Button>
+                      />
                     ) : null}
                   </TableCell>
                 </TableRow>

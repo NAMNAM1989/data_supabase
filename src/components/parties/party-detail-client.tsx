@@ -10,6 +10,7 @@ import {
   updatePartyAction,
 } from "@/app/(app)/parties/actions";
 import { useProfile } from "@/components/providers/profile-provider";
+import { DetailEditHint } from "@/components/shared/edit-row-actions";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -90,6 +91,8 @@ export function PartyDetailClient({ partyId }: { partyId: string }) {
           </Button>
         ) : null}
       </div>
+
+      <DetailEditHint canEdit={canWrite(role)} />
 
       <Card>
         <CardHeader>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -11,6 +11,7 @@ import {
   updateDestinationAction,
 } from "@/app/(app)/destinations/actions";
 import { useProfile } from "@/components/providers/profile-provider";
+import { EditRowButton, WriteAccessHint } from "@/components/shared/edit-row-actions";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -123,6 +124,8 @@ export function DestinationsPageClient() {
         ) : null}
       </div>
 
+      <WriteAccessHint canEdit={canWrite(role)} />
+
       <Input
         placeholder="Search IATA, city, country..."
         value={search}
@@ -140,7 +143,7 @@ export function DestinationsPageClient() {
               <TableHead>Region</TableHead>
               <TableHead>Timezone</TableHead>
               <TableHead>Status</TableHead>
-              {canWrite(role) ? <TableHead className="w-28" /> : null}
+              {canWrite(role) ? <TableHead className="w-36">Thao tác</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -165,10 +168,11 @@ export function DestinationsPageClient() {
                   </TableCell>
                   {canWrite(role) ? (
                     <TableCell>
-                      <div className="flex gap-1">
-                        <Button size="icon-xs" variant="ghost" onClick={() => setEditRow(row)}>
-                          <Pencil />
-                        </Button>
+                      <div className="flex flex-wrap gap-1">
+                        <EditRowButton
+                          label={row.iata_code ?? row.city_name ?? "destination"}
+                          onClick={() => setEditRow(row)}
+                        />
                         {canPerform(role, "archive") ? (
                           <Button size="icon-xs" variant="ghost" onClick={() => handleArchive(row)}>
                             {row.status === "ARCHIVED" ? "↩" : "✕"}

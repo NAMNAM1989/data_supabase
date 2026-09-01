@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { assignVehicleAction, setPreferredVehicleAction, unassignVehicleAction } from "@/app/(app)/drivers/actions";
 import { useProfile } from "@/components/providers/profile-provider";
+import { EditRowLink, WriteAccessHint } from "@/components/shared/edit-row-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -143,6 +144,8 @@ export function DriverVehiclesPageClient() {
         ) : null}
       </div>
 
+      <WriteAccessHint canEdit={canWrite(role)} />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Assignments</CardTitle>
@@ -154,7 +157,7 @@ export function DriverVehiclesPageClient() {
                 <TableHead>Driver</TableHead>
                 <TableHead>Vehicle</TableHead>
                 <TableHead>Preferred</TableHead>
-                {canWrite(role) ? <TableHead className="w-28" /> : null}
+                {canWrite(role) ? <TableHead className="w-48">Thao tác</TableHead> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -184,11 +187,24 @@ export function DriverVehiclesPageClient() {
                     <TableCell>{row.is_preferred ? "Yes" : "—"}</TableCell>
                     {canWrite(role) ? (
                       <TableCell>
-                        <div className="flex gap-1">
+                        <div className="flex flex-wrap gap-1">
+                          {row.driver ? (
+                            <EditRowLink
+                              href={`/drivers/${row.driver.id}`}
+                              label={row.driver.full_name}
+                            />
+                          ) : null}
+                          {row.vehicle ? (
+                            <EditRowLink
+                              href={`/vehicles/${row.vehicle.id}`}
+                              label={row.vehicle.plate_display ?? row.vehicle.plate_number}
+                            />
+                          ) : null}
                           <Button
                             size="icon-xs"
                             variant="ghost"
                             onClick={() => handleSetPreferred(row.id, row.driver_id)}
+                            aria-label="Đặt xe ưu tiên"
                           >
                             <Star />
                           </Button>
@@ -196,6 +212,7 @@ export function DriverVehiclesPageClient() {
                             size="icon-xs"
                             variant="ghost"
                             onClick={() => handleUnassign(row.id, row.driver_id, row.vehicle_id)}
+                            aria-label="Gỡ assignment"
                           >
                             <Trash2 />
                           </Button>

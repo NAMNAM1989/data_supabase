@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Pencil, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { createDriverAction } from "@/app/(app)/drivers/actions";
 import { useProfile } from "@/components/providers/profile-provider";
+import { EditRowLink, WriteAccessHint } from "@/components/shared/edit-row-actions";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -105,6 +106,8 @@ export function DriversPageClient() {
         ) : null}
       </div>
 
+      <WriteAccessHint canEdit={canWrite(role)} />
+
       <Input
         placeholder="Search driver..."
         value={search}
@@ -122,7 +125,7 @@ export function DriversPageClient() {
               <TableHead>Vehicles</TableHead>
               <TableHead>Customers</TableHead>
               <TableHead>Status</TableHead>
-              {canWrite(role) ? <TableHead className="w-16" /> : null}
+              {canWrite(role) ? <TableHead className="w-24">Thao tác</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -149,14 +152,7 @@ export function DriversPageClient() {
                   </TableCell>
                   {canWrite(role) ? (
                     <TableCell>
-                      <Button
-                        size="icon-xs"
-                        variant="ghost"
-                        render={<Link href={`/drivers/${driver.id}`} />}
-                        aria-label={`Sửa ${driver.full_name}`}
-                      >
-                        <Pencil />
-                      </Button>
+                      <EditRowLink href={`/drivers/${driver.id}`} label={driver.full_name} />
                     </TableCell>
                   ) : null}
                 </TableRow>

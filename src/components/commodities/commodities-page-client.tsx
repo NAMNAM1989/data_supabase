@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -9,6 +9,7 @@ import {
   updateCommodityAction,
 } from "@/app/(app)/commodities/actions";
 import { useProfile } from "@/components/providers/profile-provider";
+import { EditRowButton, WriteAccessHint } from "@/components/shared/edit-row-actions";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -109,6 +110,8 @@ export function CommoditiesPageClient() {
         ) : null}
       </div>
 
+      <WriteAccessHint canEdit={canWrite(role)} />
+
       <Input
         placeholder="Search commodity..."
         value={search}
@@ -125,7 +128,7 @@ export function CommoditiesPageClient() {
               <TableHead>English</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Status</TableHead>
-              {canWrite(role) ? <TableHead className="w-16" /> : null}
+              {canWrite(role) ? <TableHead className="w-24">Thao tác</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -149,14 +152,7 @@ export function CommoditiesPageClient() {
                   </TableCell>
                   {canWrite(role) ? (
                     <TableCell>
-                      <Button
-                        size="icon-xs"
-                        variant="ghost"
-                        onClick={() => setEditRow(item)}
-                        aria-label={`Sửa ${item.name}`}
-                      >
-                        <Pencil />
-                      </Button>
+                      <EditRowButton label={item.name} onClick={() => setEditRow(item)} />
                     </TableCell>
                   ) : null}
                 </TableRow>

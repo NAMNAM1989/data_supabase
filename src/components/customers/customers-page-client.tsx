@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Pencil, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { createCustomerAction } from "@/app/(app)/customers/actions";
 import { useProfile } from "@/components/providers/profile-provider";
+import { EditRowLink, WriteAccessHint } from "@/components/shared/edit-row-actions";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -159,6 +160,8 @@ export function CustomersPageClient() {
         ) : null}
       </div>
 
+      <WriteAccessHint canEdit={canWrite(role)} />
+
       <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 md:flex-row">
         <Input
           placeholder="Search code, name..."
@@ -203,7 +206,7 @@ export function CustomersPageClient() {
               <TableHead className="text-right">CNEE</TableHead>
               <TableHead className="text-right">Goods</TableHead>
               <TableHead>Status</TableHead>
-              {canWrite(role) ? <TableHead className="w-16" /> : null}
+              {canWrite(role) ? <TableHead className="w-24">Thao tác</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -241,14 +244,7 @@ export function CustomersPageClient() {
                   </TableCell>
                   {canWrite(role) ? (
                     <TableCell>
-                      <Button
-                        size="icon-xs"
-                        variant="ghost"
-                        render={<Link href={`/customers/${customer.id}`} />}
-                        aria-label={`Sửa ${customer.name}`}
-                      >
-                        <Pencil />
-                      </Button>
+                      <EditRowLink href={`/customers/${customer.id}`} label={customer.name} />
                     </TableCell>
                   ) : null}
                 </TableRow>

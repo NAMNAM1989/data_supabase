@@ -35,6 +35,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useUsers } from "@/hooks/use-users";
+import { useSubmitLock } from "@/hooks/use-submit-lock";
 import { canPerform } from "@/lib/auth/permissions";
 import { formString } from "@/lib/form";
 import { APP_ROLES } from "@/types/auth";
@@ -51,41 +52,41 @@ export function UsersPageClient() {
   const { data, isLoading, refetch } = useUsers();
   const [open, setOpen] = useState(false);
   const [editUser, setEditUser] = useState<EditUser | null>(null);
-  const [saving, setSaving] = useState(false);
+  const { saving, runLocked } = useSubmitLock();
   const [newRole, setNewRole] = useState<string>("VIEWER");
 
   async function handleCreate(formData: FormData) {
-    setSaving(true);
-    const result = await createUserAction({
-      email: formData.get("email"),
-      password: formData.get("password"),
-      display_name: formData.get("display_name"),
-      role: newRole,
+    await runLocked(async () => {
+      const result = await createUserAction({
+        email: formData.get("email"),
+        password: formData.get("password"),
+        display_name: formData.get("display_name"),
+        role: newRole,
+      });
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Đã tạo user");
+      setOpen(false);
+      refetch();
     });
-    setSaving(false);
-    if (result.error) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success("Đã tạo user");
-    setOpen(false);
-    refetch();
   }
 
   async function handleUpdateDisplayName(formData: FormData) {
     if (!editUser) return;
-    setSaving(true);
-    const result = await updateUserAction(editUser.id, {
-      display_name: formString(formData, "display_name"),
+    await runLocked(async () => {
+      const result = await updateUserAction(editUser.id, {
+        display_name: formString(formData, "display_name"),
+      });
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Đã cập nhật display name");
+      setEditUser(null);
+      refetch();
     });
-    setSaving(false);
-    if (result.error) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success("Đã cập nhật display name");
-    setEditUser(null);
-    refetch();
   }
 
   async function handleRoleChange(userId: string, nextRole: string) {

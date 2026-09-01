@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/table";
 import { useDrivers } from "@/hooks/use-drivers";
 import { useDriverVehicleAssignments, useVehicles } from "@/hooks/use-vehicles";
+import { useSubmitLock } from "@/hooks/use-submit-lock";
 import { canWrite } from "@/lib/auth/permissions";
 
 export function DriverVehiclesPageClient() {
@@ -43,7 +44,7 @@ export function DriverVehiclesPageClient() {
   const drivers = useDrivers();
   const vehicles = useVehicles();
   const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const { saving, runLocked } = useSubmitLock();
   const [driverId, setDriverId] = useState("");
   const [vehicleId, setVehicleId] = useState("");
 
@@ -52,15 +53,15 @@ export function DriverVehiclesPageClient() {
       toast.error("Chọn driver và vehicle");
       return;
     }
-    setSaving(true);
-    const result = await assignVehicleAction({ driver_id: driverId, vehicle_id: vehicleId });
-    setSaving(false);
-    if (result.error) toast.error(result.error);
-    else {
-      toast.success("Đã tạo assignment");
-      setOpen(false);
-      assignments.refetch();
-    }
+    await runLocked(async () => {
+      const result = await assignVehicleAction({ driver_id: driverId, vehicle_id: vehicleId });
+      if (result.error) toast.error(result.error);
+      else {
+        toast.success("Đã tạo assignment");
+        setOpen(false);
+        assignments.refetch();
+      }
+    });
   }
 
   async function handleUnassign(

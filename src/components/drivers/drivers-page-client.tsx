@@ -28,33 +28,34 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useDrivers } from "@/hooks/use-drivers";
+import { useSubmitLock } from "@/hooks/use-submit-lock";
 import { canWrite } from "@/lib/auth/permissions";
 
 export function DriversPageClient() {
   const { role } = useProfile();
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const { saving, runLocked } = useSubmitLock();
   const { data, isLoading, refetch } = useDrivers({ search: search || undefined });
 
   async function handleCreate(formData: FormData) {
-    setSaving(true);
-    const result = await createDriverAction({
-      full_name: formData.get("full_name"),
-      code: formData.get("code"),
-      phone: formData.get("phone"),
-      document_number: formData.get("document_number"),
-      license_number: formData.get("license_number"),
-      status: "ACTIVE",
+    await runLocked(async () => {
+      const result = await createDriverAction({
+        full_name: formData.get("full_name"),
+        code: formData.get("code"),
+        phone: formData.get("phone"),
+        document_number: formData.get("document_number"),
+        license_number: formData.get("license_number"),
+        status: "ACTIVE",
+      });
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Đã tạo driver");
+      setOpen(false);
+      refetch();
     });
-    setSaving(false);
-    if (result.error) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success("Đã tạo driver");
-    setOpen(false);
-    refetch();
   }
 
   return (

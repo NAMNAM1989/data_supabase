@@ -28,33 +28,34 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useVehicles } from "@/hooks/use-vehicles";
+import { useSubmitLock } from "@/hooks/use-submit-lock";
 import { canWrite } from "@/lib/auth/permissions";
 
 export function VehiclesPageClient() {
   const { role } = useProfile();
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const { saving, runLocked } = useSubmitLock();
   const { data, isLoading, refetch } = useVehicles({ search: search || undefined });
 
   async function handleCreate(formData: FormData) {
-    setSaving(true);
-    const result = await createVehicleAction({
-      plate_number: formData.get("plate_number"),
-      plate_display: formData.get("plate_display"),
-      vehicle_type: formData.get("vehicle_type"),
-      brand: formData.get("brand"),
-      model: formData.get("model"),
-      status: "ACTIVE",
+    await runLocked(async () => {
+      const result = await createVehicleAction({
+        plate_number: formData.get("plate_number"),
+        plate_display: formData.get("plate_display"),
+        vehicle_type: formData.get("vehicle_type"),
+        brand: formData.get("brand"),
+        model: formData.get("model"),
+        status: "ACTIVE",
+      });
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Đã tạo vehicle");
+      setOpen(false);
+      refetch();
     });
-    setSaving(false);
-    if (result.error) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success("Đã tạo vehicle");
-    setOpen(false);
-    refetch();
   }
 
   return (

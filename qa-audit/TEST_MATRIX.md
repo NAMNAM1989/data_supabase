@@ -1,32 +1,42 @@
-# TEST_MATRIX (executed subset)
+# TEST_MATRIX — NAM NAM DATA (2026-09-01 re-audit)
 
-| TC ID | Function | Type | Result | Notes |
-|---|---|---|---|---|
-| TC-AUTH-01 | F004 | Happy | PARTIAL | Password sync required |
-| TC-DASH-01 | F010 | Happy | PASS | Stats render |
-| TC-CUST-01 | F021 | Happy | PASS | Search CYL |
-| TC-CUST-02 | F021 | Negative | PASS | ZZZNOMATCH |
-| TC-CUST-03 | F021 | Clear | PASS | Restore list |
-| TC-CUST-04 | F024 | Empty | PASS | Dialog stays |
-| TC-CUST-05 | F024 | Happy | PASS | QA889438 / QA979998 |
-| TC-CUST-06 | F024 | Duplicate | PASS | Toast tồn tại |
-| TC-CUST-07 | F025 | Happy | PASS | Detail URL |
-| TC-CUST-08 | F030 | Invalid email | PASS | Email không hợp lệ |
-| TC-CUST-09 | F031 | Archive | PASS | Status archived |
-| TC-CUST-10 | F031 | Restore rapid | FAIL | Toast intercept |
-| TC-PARTY-01 | F051 | Happy | FAIL | Invalid input |
-| TC-COMM-01 | F061 | Happy | PASS | QA Goods |
-| TC-DEST-01 | F071 | Invalid IATA | PASS | length validation |
-| TC-DEST-02 | F071 | Happy | PASS | Q10/Q86 |
-| TC-DEST-03 | F071 | Duplicate | PASS | Dữ liệu đã tồn tại |
-| TC-DRV-01 | F081 | Happy | PASS | QA Driver |
-| TC-VEH-01 | F091 | Happy | PASS | 50QA83831 |
-| TC-EXP-01 | F120-122 | Happy | PASS | CSV downloads |
-| TC-IMP-01 | F110 | Preview | PASS | duplicates detected |
-| TC-IMP-02 | F112 | Update commit | PASS | 2 cập nhật |
-| TC-DUP-01 | F130 | Scan | PASS | 0 groups |
-| TC-SEARCH-01 | F170-172 | Happy | PASS | QA multi-entity |
-| TC-SET-01 | F160 | Happy | FAIL | Audit RLS |
-| TC-AUDIT-01 | F140 | Happy | FAIL | Empty |
-| TC-USER-01 | F151 | Empty | PASS | Dialog stays |
-| TC-ROUTE-01 | All nav | Smoke | PASS | 15 routes 200 |
+| TC | Function | Type | Env | Result | Notes |
+|---|---|---|---|---|---|
+| TC-ROUTE-ALL | F010–F170 pages | Happy | Local | PASS | 15/15 routes HTTP 200, correct H1 |
+| TC-HEALTH | F180 | Happy | Railway | PASS | `status:ok` |
+| TC-AUTH-LOGIN | F001 | Happy | Railway | PASS | Admin login → dashboard |
+| TC-AUTH-DEV | F004 | Happy | Local | PASS | `/login` redirects to Dashboard |
+| TC-DASH-COUNTS | F010 | Happy | Local | PASS | Matches DB (customers 45, drivers 9, vehicles 20…) |
+| TC-CUST-SEARCH-EMPTY | F021 | Negative | Railway | PASS | `___NOMATCH___` → empty state |
+| TC-COMM-CREATE | F061 | Happy | Railway+Local | PASS | Created `QA-CM-414101` |
+| TC-COMM-EDIT | F062 | Happy | Local | PASS | Renamed to LOCAL EDIT |
+| TC-COMM-EDIT-PROD | F062 | Happy | Railway | FAIL | Pencil missing — **prod deploy lag** |
+| TC-COMM-EMPTY | F061-empty | Empty | Local | PASS | HTML5 required blocks |
+| TC-COMM-DBLCLICK | F061-rapid | Repeated | Local | **FAIL** | Created **2** identical rows |
+| TC-PARTY-CREATE | F051 | Happy | Local | PASS | Toast + list refresh |
+| TC-PARTY-ARCHIVE | F055/F055b | Happy | Local | PASS | Archive → Restore |
+| TC-PARTY-PENCIL | F055c | Happy | Local | PASS | ✏ → detail |
+| TC-DEST-EDIT | F072 | Happy | Railway | PASS | Edit dialog opens |
+| TC-USER-EDIT-NAME | F153 | Happy | Local | PASS | Dialog opens |
+| TC-USER-EDIT-PROD | F153 | Happy | Railway | FAIL | Pencil missing — deploy lag |
+| TC-PENCIL-CUST | F025b | Happy | Local | PASS | → customer detail |
+| TC-PENCIL-DRV | F082b | Happy | Local | PASS | → driver detail |
+| TC-PENCIL-VEH | F092b | Happy | Local | PASS | → vehicle detail |
+| TC-PENCIL-PROD | F025b | Happy | Railway | FAIL | No list pencils (old build) |
+| TC-GSEARCH | F160 | Happy | Railway | PASS | Dialog opens |
+| TC-DUP-SCAN | F130 | Happy | Railway | PASS | Scan runs |
+| TC-EXPORT-BTNS | F120 | Happy | Railway | PASS | 3 export buttons |
+| TC-LOCAL-STATIC-403 | — | Runtime | Local (stale) | FAIL→PASS | After `.next` clear, 403 gone |
+| TC-IMPORT-FULL | F110–F112 | Happy | — | BLOCKED | Not re-run this session (file upload timing) |
+| TC-LOGOUT | F002 | Happy | — | BLOCKED | Skipped to keep session |
+
+## Cross-function / state
+
+| Chain | Result | Notes |
+|---|---|---|
+| CREATE commodity → EDIT → READ (DB) | PASS | Local |
+| CREATE party → ARCHIVE → RESTORE | PASS | Local |
+| SEARCH empty → clear → list | PASS | Customers |
+| OPEN dialog A → ESC → OPEN dialog B | PASS | Commodities |
+| dblclick Create | **FAIL** | Duplicate insert |
+| Prod list pencil features | **FAIL** | Behind GitHub `master` |

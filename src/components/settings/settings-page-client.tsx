@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { toast } from "sonner";
 
 import { updateSelfSettingsAction } from "@/app/(app)/settings/actions";
@@ -10,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useSubmitLock } from "@/hooks/use-submit-lock";
 import { canPerform } from "@/lib/auth/permissions";
 import type { UserProfile } from "@/types/auth";
 
@@ -20,20 +20,20 @@ type SettingsPageClientProps = {
 };
 
 export function SettingsPageClient({ profile, email, role }: SettingsPageClientProps) {
-  const [saving, setSaving] = useState(false);
+  const { saving, runLocked } = useSubmitLock();
   const isAdmin = canPerform(role, "manage_users");
 
   async function handleSave(formData: FormData) {
-    setSaving(true);
-    const result = await updateSelfSettingsAction({
-      display_name: formData.get("display_name"),
+    await runLocked(async () => {
+      const result = await updateSelfSettingsAction({
+        display_name: formData.get("display_name"),
+      });
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Đã lưu cài đặt");
     });
-    setSaving(false);
-    if (result.error) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success("Đã lưu cài đặt");
   }
 
   return (

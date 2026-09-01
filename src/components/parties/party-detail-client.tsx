@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -27,6 +26,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useParty, usePartyCustomers } from "@/hooks/use-parties";
+import { useSubmitLock } from "@/hooks/use-submit-lock";
 import { canPerform, canWrite } from "@/lib/auth/permissions";
 import { formString } from "@/lib/form";
 
@@ -34,7 +34,7 @@ export function PartyDetailClient({ partyId }: { partyId: string }) {
   const { role } = useProfile();
   const { data: party, isLoading, refetch } = useParty(partyId);
   const customers = usePartyCustomers(partyId);
-  const [saving, setSaving] = useState(false);
+  const { saving, runLocked } = useSubmitLock();
 
   if (isLoading) return <Skeleton className="h-64 w-full" />;
   if (!party) return <p>Không tìm thấy party.</p>;
@@ -42,23 +42,23 @@ export function PartyDetailClient({ partyId }: { partyId: string }) {
   const record = party;
 
   async function handleUpdate(formData: FormData) {
-    setSaving(true);
-    const result = await updatePartyAction(partyId, {
-      name: formString(formData, "name"),
-      code: formString(formData, "code"),
-      address: formString(formData, "address"),
-      phone: formString(formData, "phone"),
-      email: formString(formData, "email"),
-      tax_code: formString(formData, "tax_code"),
-      notes: formString(formData, "notes"),
+    await runLocked(async () => {
+      const result = await updatePartyAction(partyId, {
+        name: formString(formData, "name"),
+        code: formString(formData, "code"),
+        address: formString(formData, "address"),
+        phone: formString(formData, "phone"),
+        email: formString(formData, "email"),
+        tax_code: formString(formData, "tax_code"),
+        notes: formString(formData, "notes"),
+      });
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Đã cập nhật");
+      refetch();
     });
-    setSaving(false);
-    if (result.error) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success("Đã cập nhật");
-    refetch();
   }
 
   async function handleArchive() {

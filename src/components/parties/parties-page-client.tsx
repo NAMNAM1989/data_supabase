@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useParties } from "@/hooks/use-parties";
+import { useSubmitLock } from "@/hooks/use-submit-lock";
 import { canWrite } from "@/lib/auth/permissions";
 import { formString } from "@/lib/form";
 
@@ -36,28 +37,28 @@ export function PartiesPageClient() {
   const { role } = useProfile();
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const { saving, runLocked } = useSubmitLock();
   const { data, isLoading, refetch } = useParties({ search: search || undefined });
 
   async function handleCreate(formData: FormData) {
-    setSaving(true);
-    const result = await createPartyAction({
-      name: formString(formData, "name"),
-      code: formString(formData, "code"),
-      address: formString(formData, "address"),
-      phone: formString(formData, "phone"),
-      email: formString(formData, "email"),
-      tax_code: formString(formData, "tax_code"),
-      status: "ACTIVE",
+    await runLocked(async () => {
+      const result = await createPartyAction({
+        name: formString(formData, "name"),
+        code: formString(formData, "code"),
+        address: formString(formData, "address"),
+        phone: formString(formData, "phone"),
+        email: formString(formData, "email"),
+        tax_code: formString(formData, "tax_code"),
+        status: "ACTIVE",
+      });
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Đã tạo party");
+      setOpen(false);
+      refetch();
     });
-    setSaving(false);
-    if (result.error) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success("Đã tạo party");
-    setOpen(false);
-    refetch();
   }
 
   return (

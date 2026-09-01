@@ -30,6 +30,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useCommodities } from "@/hooks/use-commodities";
+import { useSubmitLock } from "@/hooks/use-submit-lock";
 import { canWrite } from "@/lib/auth/permissions";
 import { formString } from "@/lib/form";
 import type { Tables } from "@/types/database";
@@ -41,48 +42,48 @@ export function CommoditiesPageClient() {
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [editRow, setEditRow] = useState<CommodityRow | null>(null);
-  const [saving, setSaving] = useState(false);
+  const { saving, runLocked } = useSubmitLock();
   const { data, isLoading, refetch } = useCommodities({ search: search || undefined });
 
   async function handleCreate(formData: FormData) {
-    setSaving(true);
-    const result = await createCommodityAction({
-      name: formString(formData, "name"),
-      code: formString(formData, "code"),
-      english_name: formString(formData, "english_name"),
-      category: formString(formData, "category"),
-      status: "ACTIVE",
-      is_dg: false,
-      contains_battery: false,
-      is_liquid: false,
+    await runLocked(async () => {
+      const result = await createCommodityAction({
+        name: formString(formData, "name"),
+        code: formString(formData, "code"),
+        english_name: formString(formData, "english_name"),
+        category: formString(formData, "category"),
+        status: "ACTIVE",
+        is_dg: false,
+        contains_battery: false,
+        is_liquid: false,
+      });
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Đã tạo commodity");
+      setCreateOpen(false);
+      refetch();
     });
-    setSaving(false);
-    if (result.error) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success("Đã tạo commodity");
-    setCreateOpen(false);
-    refetch();
   }
 
   async function handleUpdate(formData: FormData) {
     if (!editRow) return;
-    setSaving(true);
-    const result = await updateCommodityAction(editRow.id, {
-      name: formString(formData, "name"),
-      code: formString(formData, "code"),
-      english_name: formString(formData, "english_name"),
-      category: formString(formData, "category"),
+    await runLocked(async () => {
+      const result = await updateCommodityAction(editRow.id, {
+        name: formString(formData, "name"),
+        code: formString(formData, "code"),
+        english_name: formString(formData, "english_name"),
+        category: formString(formData, "category"),
+      });
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Đã cập nhật commodity");
+      setEditRow(null);
+      refetch();
     });
-    setSaving(false);
-    if (result.error) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success("Đã cập nhật commodity");
-    setEditRow(null);
-    refetch();
   }
 
   return (

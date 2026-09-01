@@ -1,11 +1,9 @@
-# QA_AUDIT_REPORT.md — NAM NAM DATA
+# QA_AUDIT_REPORT — NAM NAM DATA
 
 **Date:** 2026-09-01  
-**Target:** `http://localhost:3000` (Next.js 16 + Supabase `cuakkgauyutapdznqhge`)  
-**Method:** Playwright MCP + DB verification (Supabase SQL/Admin API)  
-**Mode:** Read/write QA with `QA*` prefixed test data — **no application code changes**
-
-> **Update 2026-09-01 (evening):** P1 bugs **BUG-001 / BUG-002 / BUG-003** fixed in app + Supabase migrations. Settings + Parties create + audit trail verified PASS. **BUG-004** (toast blocking clicks) fixed — Toaster `bottom-right` + `pointer-events: none` on region. Re-audit recommended for remaining P2+ (import audit edge cases only if needed).
+**Method:** Autonomous Playwright MCP + Supabase SQL data audit  
+**Targets:** Local `http://localhost:3000` · Production `https://datasupabase-production.up.railway.app`  
+**Rule:** No application code changes (audit only)
 
 ---
 
@@ -13,50 +11,41 @@
 
 | Metric | Value |
 |---|---|
-| Overall Quality | **NOT READY FOR PRODUCTION** (audit trail + Settings broken; Parties create broken) |
-| Total Functions (inventory) | 72 |
-| Functions Tested (runtime) | ~45 |
-| PASS | ~32 |
-| FAIL | 8 |
-| BLOCKED | ~19 (permission-role variants, merge UI absent, print N/A, some relation tabs not fully exercised) |
-| Total Test Cases (executed) | ~60+ |
-| Total Bugs | 7 |
+| Overall Quality | **Mixed** — core CRUD works locally; prod UI lag + double-submit + thin master-data links |
+| Total Functions (inventory) | ~70 |
+| Functions exercised this run | ~35 |
+| PASS (runtime confirmed) | 28 |
+| FAIL | 4 |
+| BLOCKED | 2 (import deep, logout) |
+| Total Bugs logged | 4 |
 | P0 | 0 |
-| P1 | 3 |
+| P1 | 1 |
 | P2 | 2 |
 | P3 | 1 |
-| P4 | 1 |
+| P4 | 0 |
 
-**Verdict:** Core master-data CRUD for Customers / Drivers / Vehicles / Destinations / Import / Export / Global Search works. **Audit logging is non-functional** (RLS + missing calls). **Settings save fails** because of audit insert. **Parties create from list dialog fails** due to `null` FormData → Zod. Toast overlays can block subsequent clicks.
+**Final verdict:** `NOT READY FOR PRODUCTION` (as full MDM) — see data report + deploy lag + duplicate create.
 
 ---
 
 # FUNCTION COVERAGE
 
 | Function | Tests | Pass | Fail | Blocked | Status |
-|---|---|---|---|---|---|
-| F004 DEV skip auth | 2 | 1 | 1 | 0 | PARTIAL — needs valid `DEV_AUTH_PASSWORD` |
-| F010–F013 Dashboard | 3 | 3 | 0 | 0 | PASS |
-| F020–F025 Customers list | 8 | 7 | 1 | 0 | PASS (nav click flaky w/ toast) |
-| F030–F031 Detail update/archive | 4 | 4 | 0 | 0 | PASS |
-| F032–F042 Customer relations | 0 | 0 | 0 | 11 | BLOCKED — not fully exercised this run |
-| F050–F051 Parties | 3 | 1 | 2 | 0 | **FAIL create** |
-| F060–F061 Commodities | 2 | 2 | 0 | 0 | PASS |
-| F070–F073 Destinations | 5 | 5 | 0 | 0 | PASS |
-| F080–F081 Drivers | 2 | 2 | 0 | 0 | PASS |
-| F090–F091 Vehicles | 2 | 2 | 0 | 0 | PASS |
-| F100 Driver↔Vehicle list | 1 | 1 | 0 | 0 | PASS |
-| F101–F103 Assign/unassign | 0 | 0 | 0 | 3 | BLOCKED — not deep-tested |
-| F110–F112 Import | 4 | 4 | 0 | 0 | PASS (update path; create+audit broken) |
-| F120–F122 Export | 3 | 3 | 0 | 0 | PASS |
-| F130 Duplicates scan | 2 | 2 | 0 | 0 | PASS (0 groups found) |
-| F140 Audit list | 2 | 0 | 2 | 0 | **FAIL — empty forever** |
-| F150–F151 Users | 2 | 2 | 0 | 0 | PASS (empty validation) |
-| F160 Settings | 2 | 0 | 2 | 0 | **FAIL** |
-| F170–F172 Global Search | 3 | 3 | 0 | 0 | PASS |
-| F001–F002 Login/Logout | 1 | 1 | 0 | 0 | PARTIAL — DEV bypass redirects `/login`→dashboard |
+|---|---:|---:|---:|---:|---|
+| Routes / Dashboard | 3 | 3 | 0 | 0 | OK |
+| Auth login (Railway) | 1 | 1 | 0 | 0 | OK |
+| DEV skip auth | 1 | 1 | 0 | 0 | OK |
+| Customers search / detail / pencil | 4 | 3 | 1* | 0 | *prod pencil fail |
+| Parties create / archive / pencil | 4 | 4 | 0 | 0 | OK (local) |
+| Commodities create / edit / empty / dblclick | 5 | 3 | 2 | 0 | dblclick FAIL; prod edit FAIL |
+| Destinations edit | 1 | 1 | 0 | 0 | OK |
+| Drivers/Vehicles pencil | 2 | 2 | 0 | 0 | OK (local) |
+| Users display_name dialog | 2 | 1 | 1* | 0 | *prod missing |
+| Global search / duplicates / export | 3 | 3 | 0 | 0 | OK |
+| Import commit | 0 | 0 | 0 | 1 | BLOCKED |
+| Logout | 0 | 0 | 0 | 1 | BLOCKED |
 
-Artifacts: `qa-audit/FUNCTION_INVENTORY.md`, `qa-audit/fixtures/customers-import.csv`
+\*Production build thiếu list-edit UX đã có trên GitHub `master`.
 
 ---
 
@@ -64,302 +53,185 @@ Artifacts: `qa-audit/FUNCTION_INVENTORY.md`, `qa-audit/fixtures/customers-import
 
 | Bug | Severity | Module | Function | Reproducible | Root Cause | Fix Priority |
 |---|---|---|---|---|---|---|
-| BUG-001 | P1 | Audit / Settings / Import | F140, F160, F112 | Always | RLS: no INSERT policy on `audit_logs` | IMMEDIATE |
-| BUG-002 | P1 | Parties | F051 | Always | `tax_code: formData.get()` → `null` fails Zod | IMMEDIATE |
-| BUG-003 | P1 | Audit | Master CRUD | Always | `writeAuditLog` never called from customers/drivers/… actions | IMMEDIATE |
-| BUG-004 | P2 | UI / Sonner | Cross-function | Always | Toast overlay intercepts clicks | HIGH |
-| BUG-005 | P2 | Import | F112 create path | Always | Create+audit fails RLS; update path skips audit | HIGH |
-| BUG-006 | P3 | Auth DEV | F004 | Always when password stale | Auto sign-in fails; mock session ≠ real Supabase JWT | IMPROVEMENT |
-| BUG-007 | P4 | Global Search | F171 | Always | Destination result label lacks separator (`Q10QA City`) | IMPROVEMENT |
+| BUG-010 | P1 | Deploy | F062/F025b/F153 | Always on Railway | Prod image behind master | IMMEDIATE |
+| BUG-011 | P2 | Commodities | F061-rapid | Always | No submit lock / idempotency | HIGH |
+| BUG-012 | P2 | DevTooling | Static chunks | Intermittent local | Stale Turbopack `.next` → 403 | HIGH |
+| BUG-013 | P3 | Data | Coverage | Always | Sparse relations / incomplete attrs | IMPROVEMENT |
 
 ---
 
 # DETAILED BUG REPORTS
 
-## BUG-001 — Audit INSERT bị RLS chặn; Settings luôn báo lỗi sau khi update profile
+## BUG-010 — Production UI thiếu Edit/Pencil đã có trên master
 
 **Severity:** P1  
-**Module:** Audit Logs / Settings / Import  
-**Affected Function:** F140, F160, F112  
-**Reproducibility:** Always  
+**Module:** Deploy / Commodities / Customers / Users / Parties  
+**Affected Function:** F062, F025b, F153, list pencils  
+**Reproducibility:** Always on Railway  
 
-**Precondition:** Logged in as ADMIN (`authenticated` role)
+**Precondition:** Logged in as ADMIN on production URL.
 
 **Steps to Reproduce:**
-1. Open `/settings`
-2. Change Display Name → Lưu thay đổi
-3. Observe toast error
-4. Query `audit_logs` → still 0 rows
-5. As authenticated user: `insert into audit_logs` → RLS violation `42501`
+1. Open `/commodities` on Railway.
+2. Create commodity (works).
+3. Look for ✏ edit / list pencils on customers/users.
 
-**Expected:** Profile saves; audit row written; Audit Logs page shows entries after CRUD/import  
+**Expected:** Same UX as local/GitHub master (commodity edit dialog, list pencils, users display_name edit).  
+**Actual:** Create works; pencils/edit affordances missing. Customer open falls back to text link only.
 
-**Actual:**
-- Settings toast: `Đã xảy ra lỗi. Vui lòng thử lại` (via `mapSupabaseError` UNKNOWN / permission path)
-- `audit_logs` count = **0** after many creates/updates/imports
-- Confirmed: only policy is `admin_read_audit` (**SELECT**). **No INSERT policy**
-
-**Evidence:**
-- Playwright Settings toast error
-- Admin API: `audits: 0`
-- Client insert: `new row violates row-level security policy for table "audit_logs"`
-
-**Console Error:** none required  
-**Network Error:** PostgREST 401/403 style RLS on insert  
-
-**Minimal Reproduction:** Settings save OR any `writeAuditLog()` call with user-scoped Supabase client  
-
-**Likely Root Cause (CONFIRMED):** Missing RLS INSERT policy for `authenticated` (and/or service role usage for audit writes). Docs in `docs/04_SECURITY_RLS.md` planned `authenticated_insert_audit` but not applied.
-
-**Relevant Code:**
-- `src/lib/master-data/audit.ts` → `writeAuditLog`
-- `src/app/(app)/settings/actions.ts` (update then audit in same try)
-- DB: `pg_policies` on `audit_logs`
-
-**Recommended Fix:**
-1. Add INSERT policy: authenticated users may insert when `actor_user_id = auth.uid()` (or admin-only + use service role carefully)
-2. Do not fail the primary mutation if audit write fails (log + soft-fail) OR use transaction with clear UX
-3. Backfill/migrate policy from security docs
-
-**Regression Risk:** Medium — permission model  
-**Regression Tests Required:** Settings save creates audit; Import create writes IMPORT audit; Audit page lists rows
+**Evidence:** Playwright Railway run 2026-09-01 — F062/F153/F025b FAIL; local same DB PASS for F062 after deploy of latest code.  
+**Likely Root Cause:** Railway service not redeployed from latest `master` (commit with edit UX).  
+**Recommended Fix:** Redeploy Railway from `NAMNAM1989/data_supabase` master; verify commit SHA.  
+**Regression Tests:** Smoke checklist pencils on customers/drivers/vehicles/parties/commodities/users.
 
 ---
 
-## BUG-002 — Không tạo được Party từ dialog list (`Invalid input`)
+## BUG-011 — Double-click Create tạo 2 commodity trùng
 
-**Severity:** P1  
-**Module:** Parties  
-**Affected Function:** F051  
+**Severity:** P2  
+**Module:** Commodities (likely other dialog creates too)  
+**Affected Function:** F061-rapid  
 **Reproducibility:** Always  
 
 **Steps to Reproduce:**
-1. `/parties` → Add Party
-2. Fill Name (+ optional Code)
-3. Submit
+1. `/commodities` → Add Commodity.
+2. Enter name `QA Double …`.
+3. Double-click «Tạo Commodity».
 
-**Expected:** Party created  
-**Actual:** Toast `Invalid input`; no row
+**Expected:** One row.  
+**Actual:** Two rows same name (`QA Double L81086` ×2 in DB).
 
-**Evidence:** Playwright toast; form has no `tax_code` input but `handleCreate` passes `tax_code: formData.get("tax_code")` → `null`
-
-**Minimal Reproduction:** Create party with only name  
-
-**CONFIRMED Root Cause:** Zod `partySchema` expects `string | undefined | ""` for optional fields; `FormData.get` returns `null` for missing fields → Zod fails with generic `Invalid input`.
-
-**Relevant Code:** `src/components/parties/parties-page-client.tsx` lines 43–50; `src/lib/validation/party.ts`
-
-**Recommended Fix:**
-```ts
-tax_code: formData.get("tax_code") ?? "",
-// or z.preprocess(v => v ?? "", z.string()...)
-```
-Apply same pattern to all FormData→Zod boundaries.
-
-**Regression Tests:** Create party with only required name; create with all optional empty
+**Evidence:** SQL `count(*) where name='QA Double L81086'` = 2; timestamps ~1s apart.  
+**Likely Root Cause:** Form `action`/`saving` state không chặn submit thứ 2 trước khi re-render.  
+**Recommended Fix:** Disable submit khi `saving`; optional request idempotency key / unique business key.  
+**Regression:** Playwright dblclick create → assert row count == 1.
 
 ---
 
-## BUG-003 — Master-data CRUD không ghi audit log
-
-**Severity:** P1  
-**Module:** Customers, Drivers, Vehicles, Destinations, Parties, Commodities  
-**Affected Function:** F024, F030, F071, F081, F091, …  
-**Reproducibility:** Always  
-
-**Steps:** Create/update/archive customer (or destination) → open Audit Logs  
-
-**Expected:** INSERT/UPDATE/ARCHIVE entries  
-**Actual:** Empty audit table; code paths never call `writeAuditLog` (only Settings, Users, Import)
-
-**Likely Root Cause (CONFIRMED from source):** Design gap — audit helper exists but not wired in entity actions.
-
-**Recommended Fix:** Call `writeAuditLog` in each mutating server action (after BUG-001 RLS fix). Prefer single helper wrapper `withAudit(action, fn)`.
-
----
-
-## BUG-004 — Sonner toast chặn click các nút phía dưới/cạnh
+## BUG-012 — Local `/_next/static` chunk 403 làm UI chết (dialog/data client)
 
 **Severity:** P2  
-**Module:** Global UI  
-**Affected Function:** Cross-function (F031 Restore observed)  
-**Reproducibility:** Always while toast visible  
+**Module:** Local Next/Turbopack  
+**Affected Function:** All client interactivity  
+**Reproducibility:** Intermittent (seen after long-running/hung `next dev`)
 
-**Steps:** Archive customer → immediately click Restore  
+**Steps:** Browse with Playwright while `.next` stale / server previously hung.  
+**Actual:** Many JS chunks 403; Add dialog không mở; table trống dù SSR shell còn.  
+**Recovery:** Kill port 3000, delete `.next`, restart `npm run dev` → PASS.
 
-**Actual:** Playwright: toast `<li data-sonner-toast>` intercepts pointer events; click times out  
-
-**Likely Root Cause:** Toast stacking/position + high z-index without pointer-events passthrough on container  
-
-**Recommended Fix:** Auto-dismiss sooner; `pointer-events: none` on toast region except close button; or queue toasts bottom-left away from primary actions  
-
-**Regression Tests:** Archive → Restore within 1s; Create → immediately open another dialog
+**Likely Root Cause:** Stale Turbopack assets / hung Node on :3000.  
+**Recommended Fix:** Document restart procedure; CI use `next start` production build for E2E; avoid multi-dev instances.
 
 ---
 
-## BUG-005 — Import CREATE + audit: create có thể thành công nhưng audit fail; UPDATE bỏ qua audit
+## BUG-013 — Master data relation coverage quá thấp
 
-**Severity:** P2  
-**Module:** Import  
-**Affected Function:** F112  
-
-**Observed:** Re-import of `QAIMP01/02` → `Import xong: 0 tạo, 2 cập nhật` (update path không gọi `writeAuditLog`). Create path gọi `writeAuditLog` sau `createCustomer` — sẽ throw RLS (BUG-001), risking partial success depending on catch scope.
-
-**Relevant Code:** `src/app/(app)/import/actions.ts` (~162–175 update branch vs create+audit)
-
-**Recommended Fix:** Fix RLS; write audit for update/skip decisions; wrap per-row so audit failure is reported in `result.errors`
-
----
-
-## BUG-006 — DEV_SKIP_AUTH fragile khi password lệch
-
-**Severity:** P3  
-**Module:** Auth  
-**Observed:** Dev server logs `[dev-auth] Auto sign-in failed: Invalid login credentials` until password synced via Admin API. Mock session can show ADMIN UI while browser client lacks JWT → data/query risk.
-
-**Recommended Fix:** Document password sync; fail hard in middleware if auto-login fails (don’t serve mock as if authenticated for client queries)
-
----
-
-## BUG-007 — Global Search destination label thiếu separator
-
-**Severity:** P4  
-**Module:** Global Search  
-**Observed:** Result text `Q10QA City` instead of `Q10 — QA City`  
-
-**Recommended Fix:** Align label format with customers (`code — name`)
+**Severity:** P3 (data readiness; not a code crash)  
+**Module:** Data  
+**Evidence:** See `DATA_QUALITY_REPORT.md` — 44/45 customers without party; 0 customer_commodities; 12/20 vehicles unassigned; all drivers missing phone.
 
 ---
 
 # CROSS-FUNCTION ISSUES
 
-| Sequence | Result |
-|---|---|
-| CREATE customer → SEARCH → OPEN detail | PASS (after toast cleared) |
-| ARCHIVE → RESTORE (immediate) | FAIL interaction (BUG-004) |
-| IMPORT preview → COMMIT update → SEARCH | PASS |
-| SETTINGS save → AUDIT list | FAIL (BUG-001) |
-| CREATE destination → CREATE duplicate IATA | PASS (`Dữ liệu đã tồn tại`) |
-| CREATE customer duplicate code | PASS |
-| Invalid email on detail → save | PASS validation message |
-| Export Customers/Drivers/Vehicles CSV | PASS downloads |
-| Global Search `QA` → multi-entity results | PASS |
-| Duplicate Center scan after QA data | PASS scan, 0 fuzzy groups (may be threshold) |
+- CREATE → EDIT commodity: PASS local; FAIL prod (BUG-010).
+- dblclick CREATE: FAIL (BUG-011).
+- SEARCH → clear → list: PASS.
+- Party CREATE → ARCHIVE → RESTORE: PASS local.
+- Prod vs Local same Supabase DB: UI feature parity broken (deploy), data shared (QA rows appear on both).
 
 ---
 
 # STATE MANAGEMENT ISSUES
 
-| Issue | Notes |
+| Issue | Status |
 |---|---|
-| Toast modal leakage | Blocks subsequent actions (BUG-004) |
-| Settings error after successful profile write | Audit failure masks success (BUG-001) |
-| DEV mock vs real session | Potential stale/unauthorized client queries (BUG-006) |
-| No stale-record print bugs | N/A — app has no PRINT |
+| Double submit / race on create | **CONFIRMED** BUG-011 |
+| Modal leakage A→B | Not observed |
+| Stale selected record | Not observed |
+| List refresh after create | PASS (parties/commodities) |
+| Nested `<main>` a11y strictness | Present (sidebar-inset + content) — test flake risk |
 
 ---
 
 # CONSOLE / RUNTIME ISSUES
 
-- No React crash observed on main routes (15/15 smoke 200)
-- Dev warning: middleware → proxy deprecation (Next 16)
-- No hydration errors recorded during tested flows
+- Local (stale): mass 403 on `/_next/static/chunks/*`, HMR websocket failures.
+- After `.next` clear: clean enough for CRUD.
+- Base UI uncontrolled FieldControl warning observed historically on party forms (prior session logs).
 
 ---
 
 # NETWORK / API ISSUES
 
-- Authenticated `audit_logs` INSERT → RLS deny (42501)
-- Export endpoints return CSV successfully
-- Import commit returns success toast for update path
+- Railway `/api/health` 200 OK.
+- Local health hung when Node process wedged (pre-kill).
+- Commodity/party mutations succeed (200) even when UI feature missing on prod.
 
 ---
 
 # DATA CONSISTENCY ISSUES
 
-| Issue | Severity |
-|---|---|
-| Audit trail missing while DB mutations succeed | P1 |
-| Settings UI error despite possible profile write | P2 |
-| Dashboard “Shippers/Consignees” = link counts, not party master rows | P4 (label clarity) — by design in `getDashboardStats` |
-
-QA seed data left in DB (safe to delete): customers `QA*`, `QAIMP*`; destinations `Q10/Q86/Q99`; driver `QA Driver*`; commodity `QA Goods*`; vehicle `50QA*`.
+- UI create success khớp DB (commodity/party).
+- Double create → 2 DB rows (BUG-011).
+- Audit log volume thấp hơn số mutation (partial coverage / soft-fail / old build).
+- Full analysis: `qa-audit/DATA_QUALITY_REPORT.md`.
 
 ---
 
 # UI/UX ISSUES
 
-- Toast blocking (BUG-004)
-- Search destination formatting (BUG-007)
-- Commodity list: no edit UI (server update exists) — product gap
-- Duplicate Center: no merge UI (documented V1)
-- Dashboard empty audit widget always empty until BUG-001/003 fixed
+- Pencil `render={<Link/>}` exposes accessible name `Sửa {name}` — Playwright `getByRole('link',{name: entity})` matches both name link and pencil (substring). Prefer distinct labels or `exact`.
+- Prod missing discoverable edit controls (BUG-010).
 
 ---
 
 # ROOT CAUSE ANALYSIS
 
 | Category | Count |
-|---|---|
-| RLS / Permissions | 1 (BUG-001, drives BUG-005) |
-| Validation / FormData null | 1 (BUG-002) |
-| Missing feature wiring | 1 (BUG-003) |
-| UI event / overlay | 1 (BUG-004) |
-| Dev tooling / env | 1 (BUG-006) |
-| Presentation | 1 (BUG-007) |
+|---|---:|
+| DEPLOY / ENV DRIFT | 1 (BUG-010) |
+| EVENT / SUBMIT RACE | 1 (BUG-011) |
+| DEV TOOLING / CACHE | 1 (BUG-012) |
+| DATA COMPLETENESS | 1 (BUG-013) |
 
 ---
 
 # RECOMMENDED FIX PLAN
 
 ## PRIORITY 1 — IMMEDIATE
-
-1. **Migration:** add `audit_logs` INSERT policy (match `docs/04_SECURITY_RLS.md`)
-2. **Parties create:** coerce `FormData` nulls to `""` (and audit all similar forms)
-3. **Wire `writeAuditLog`** into all mutating actions OR accept soft-fail audit with monitoring
+- Redeploy Railway from latest GitHub `master` (BUG-010).
+- Smoke pencils + commodity edit on prod.
 
 ## PRIORITY 2 — HIGH
-
-4. Soft-fail or reorder Settings so profile update success isn’t reported as failure when audit fails
-5. Import: audit on UPDATE; surface audit errors in commit result
-6. Toast UX: don’t block primary actions
+- Disable submit while saving; guard double-submit on all create dialogs (BUG-011).
+- Document/automate clean local E2E (`rimraf .next && next build && next start`) (BUG-012).
 
 ## PRIORITY 3 — IMPROVEMENT
-
-7. Harden DEV_SKIP_AUTH
-8. Search result label formatting
-9. Commodity edit UI; Duplicate merge (if in scope)
-10. Role-based E2E (OPERATOR/VIEWER) — currently BLOCKED / untested
+- Data backfill: parties, commodities links, driver phones, vehicle assignments (BUG-013).
+- Clean QA\* and duplicate doubles.
+- Add OPERATOR/VIEWER users for RBAC tests.
 
 ---
 
 # REGRESSION TEST PLAN
 
-Automate (Playwright):
-
-1. **BUG-001:** Settings save → assert toast success + ≥1 `audit_logs` row with `table_name=profiles`
-2. **BUG-001:** Import create new code → audit `action=IMPORT`
-3. **BUG-002:** Parties Add with name only → row appears
-4. **BUG-003:** Create customer → audit INSERT (after wiring)
-5. **BUG-004:** Archive then Restore within 500ms → both succeed
-6. **Happy:** Export 3 CSVs download; Global Search navigates; Duplicate IATA rejected
-7. **Negative:** Invalid email; empty required; duplicate customer code
-
-Suggested CI job: `npm run test:e2e` against local with `DEV_SKIP_AUTH` + known password.
+1. **TC-DBL-CREATE:** dblclick create commodity → expect 1 row.  
+2. **TC-PENCIL-SMOKE:** customers/drivers/vehicles/parties/commodities/users pencils visible (prod+local).  
+3. **TC-PARTY-ARCHIVE:** archive → restore → ACTIVE.  
+4. **TC-COMM-EDIT:** create → pencil → rename → list shows new name.  
+5. **TC-STATIC-HEALTH:** no `/_next/static` status ≥400 after load.  
+6. **TC-DATA-COVERAGE:** SQL gate optional — customers_with_party_pct > threshold.
 
 ---
 
 # TEST COVERAGE LIMITATIONS
 
-- Production Railway not fully re-audited this run (local focus)
-- Customer relation tabs (shipper/consignee/commodity/driver/vehicle prefs) not fully CRUD-tested
-- Driver↔Vehicle assign/unassign/preferred not deep-tested
-- Users create with real email not executed (avoid mailbox spam)
-- OPERATOR/VIEWER/INTEGRATION permission matrix not tested
-- No PRINT feature in app
-- Duplicate fuzzy matching returned 0 groups — algorithm sensitivity not fully validated
-- Large-file import / malformed Excel not tested
-- Mobile viewport not tested
+- Import Excel full commit not re-run this session.
+- Logout not tested (kept session).
+- RBAC as non-ADMIN not tested (only 1 profile).
+- Print N/A.
+- Production destructive archive of real customers avoided (used QA rows + prior archive evidence).
 
 ---
 
@@ -367,16 +239,20 @@ Suggested CI job: `npm run test:e2e` against local with `DEV_SKIP_AUTH` + known 
 
 ## `NOT READY FOR PRODUCTION`
 
-**Why:**
-1. Audit trail is effectively dead (RLS + unwired CRUD) — compliance/ops risk  
-2. Settings cannot complete successfully from user POV  
-3. Parties cannot be created from primary UI dialog  
+**Evidence:**
+1. Production UI thiếu edit/pencil features đã merge trên master (BUG-010).  
+2. Double-submit tạo duplicate master records (BUG-011).  
+3. Master data **chưa đủ liên kết** để vận hành MDM (44/45 customers không party; 0 commodity links) — `DATA_QUALITY_REPORT.md`.  
 
-**What works well enough for continued internal testing:**
-- Customers / Drivers / Vehicles / Destinations CRUD
-- Import (update) / Export CSV
-- Global Search
-- Validation for duplicate codes & invalid email
-- Route shell & navigation under ADMIN
+Local happy-path CRUD (sau khi reset `.next`) đạt chất lượng chấp nhận được cho tiếp tục phát triển.
 
-Ship only after Priority 1 fixes + regression suite green.
+---
+
+## Artifacts
+
+| File | Purpose |
+|---|---|
+| `qa-audit/FUNCTION_INVENTORY.md` | Function IDs |
+| `qa-audit/TEST_MATRIX.md` | Case results |
+| `qa-audit/DATA_QUALITY_REPORT.md` | Đánh giá dữ liệu |
+| `qa-audit/QA_AUDIT_REPORT.md` | Báo cáo này |

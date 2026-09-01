@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useCustomers } from "@/hooks/use-customers";
+import { useSubmitLock } from "@/hooks/use-submit-lock";
 import { canPerform, canWrite } from "@/lib/auth/permissions";
 import { formString, formValue } from "@/lib/form";
 import { CUSTOMER_TYPES } from "@/lib/validation/customer";
@@ -46,7 +47,7 @@ export function CustomersPageClient() {
   const [status, setStatus] = useState<string>("ALL");
   const [type, setType] = useState<string>("ALL");
   const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const { saving, runLocked } = useSubmitLock();
 
   const { data, isLoading, refetch } = useCustomers({
     search: search || undefined,
@@ -55,29 +56,29 @@ export function CustomersPageClient() {
   });
 
   async function handleCreate(formData: FormData) {
-    setSaving(true);
-    const result = await createCustomerAction({
-      code: formString(formData, "code"),
-      name: formString(formData, "name"),
-      short_name: formString(formData, "short_name"),
-      customer_type: formValue(formData, "customer_type"),
-      tax_code: formString(formData, "tax_code"),
-      phone: formString(formData, "phone"),
-      email: formString(formData, "email"),
-      address: formString(formData, "address"),
-      notes: formString(formData, "notes"),
-      status: "ACTIVE",
+    await runLocked(async () => {
+      const result = await createCustomerAction({
+        code: formString(formData, "code"),
+        name: formString(formData, "name"),
+        short_name: formString(formData, "short_name"),
+        customer_type: formValue(formData, "customer_type"),
+        tax_code: formString(formData, "tax_code"),
+        phone: formString(formData, "phone"),
+        email: formString(formData, "email"),
+        address: formString(formData, "address"),
+        notes: formString(formData, "notes"),
+        status: "ACTIVE",
+      });
+
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+
+      toast.success("Đã tạo customer");
+      setOpen(false);
+      refetch();
     });
-    setSaving(false);
-
-    if (result.error) {
-      toast.error(result.error);
-      return;
-    }
-
-    toast.success("Đã tạo customer");
-    setOpen(false);
-    refetch();
   }
 
   return (

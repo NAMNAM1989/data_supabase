@@ -32,6 +32,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useDestinations } from "@/hooks/use-destinations";
+import { useSubmitLock } from "@/hooks/use-submit-lock";
 import { canPerform, canWrite } from "@/lib/auth/permissions";
 import type { Tables } from "@/types/database";
 
@@ -42,49 +43,49 @@ export function DestinationsPageClient() {
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [editRow, setEditRow] = useState<DestinationRow | null>(null);
-  const [saving, setSaving] = useState(false);
+  const { saving, runLocked } = useSubmitLock();
   const { data, isLoading, refetch } = useDestinations({ search: search || undefined });
 
   async function handleCreate(formData: FormData) {
-    setSaving(true);
-    const result = await createDestinationAction({
-      iata_code: formData.get("iata_code"),
-      city_name: formData.get("city_name"),
-      country_code: formData.get("country_code"),
-      country_name: formData.get("country_name"),
-      region: formData.get("region"),
-      timezone: formData.get("timezone"),
-      status: "ACTIVE",
+    await runLocked(async () => {
+      const result = await createDestinationAction({
+        iata_code: formData.get("iata_code"),
+        city_name: formData.get("city_name"),
+        country_code: formData.get("country_code"),
+        country_name: formData.get("country_name"),
+        region: formData.get("region"),
+        timezone: formData.get("timezone"),
+        status: "ACTIVE",
+      });
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Đã tạo destination");
+      setCreateOpen(false);
+      refetch();
     });
-    setSaving(false);
-    if (result.error) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success("Đã tạo destination");
-    setCreateOpen(false);
-    refetch();
   }
 
   async function handleUpdate(formData: FormData) {
     if (!editRow) return;
-    setSaving(true);
-    const result = await updateDestinationAction(editRow.id, {
-      iata_code: formData.get("iata_code"),
-      city_name: formData.get("city_name"),
-      country_code: formData.get("country_code"),
-      country_name: formData.get("country_name"),
-      region: formData.get("region"),
-      timezone: formData.get("timezone"),
+    await runLocked(async () => {
+      const result = await updateDestinationAction(editRow.id, {
+        iata_code: formData.get("iata_code"),
+        city_name: formData.get("city_name"),
+        country_code: formData.get("country_code"),
+        country_name: formData.get("country_name"),
+        region: formData.get("region"),
+        timezone: formData.get("timezone"),
+      });
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Đã cập nhật");
+      setEditRow(null);
+      refetch();
     });
-    setSaving(false);
-    if (result.error) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success("Đã cập nhật");
-    setEditRow(null);
-    refetch();
   }
 
   async function handleArchive(row: DestinationRow) {

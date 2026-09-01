@@ -1,0 +1,82 @@
+import { mapSupabaseError, type Supabase } from "@/lib/errors";
+import type { CommodityInput, CommodityUpdateInput } from "@/lib/validation/commodity";
+import type { Tables } from "@/types/database";
+
+export type Commodity = Tables<"commodities">;
+
+export type CommodityFilters = {
+  search?: string;
+  status?: Commodity["status"];
+};
+
+export async function getCommodities(supabase: Supabase, filters?: CommodityFilters) {
+  let query = supabase.from("commodities").select("*").order("name", { ascending: true });
+
+  if (filters?.status) {
+    query = query.eq("status", filters.status);
+  }
+  if (filters?.search) {
+    const term = `%${filters.search.trim()}%`;
+    query = query.or(`name.ilike.${term},code.ilike.${term},english_name.ilike.${term}`);
+  }
+
+  const { data, error } = await query;
+  if (error) throw mapSupabaseError(error);
+  return data;
+}
+
+export async function getCommodityById(supabase: Supabase, id: string) {
+  const { data, error } = await supabase
+    .from("commodities")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) throw mapSupabaseError(error);
+  return data;
+}
+
+export async function createCommodity(supabase: Supabase, input: CommodityInput) {
+  const { data, error } = await supabase
+    .from("commodities")
+    .insert({
+      code: input.code || null,
+      name: input.name,
+      english_name: input.english_name || null,
+      hs_code: input.hs_code || null,
+      category: input.category || null,
+      is_dg: input.is_dg,
+      contains_battery: input.contains_battery,
+      is_liquid: input.is_liquid,
+      status: input.status,
+      notes: input.notes || null,
+    })
+    .select()
+    .single();
+
+  if (error) throw mapSupabaseError(error);
+  return data;
+}
+
+export async function updateCommodity(
+  supabase: Supabase,
+  id: string,
+  input: CommodityUpdateInput,
+) {
+  const { data, error } = await supabase
+    .from("commodities")
+    .update({
+      ...input,
+      code: input.code === "" ? null : input.code,
+      english_name: input.english_name === "" ? null : input.english_name,
+      hs_code: input.hs_code === "" ? null : input.hs_code,
+      category: input.category === "" ? null : input.category,
+      notes: input.notes === "" ? null : input.notes,
+    })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw mapSupabaseError(error);
+  return data;
+}

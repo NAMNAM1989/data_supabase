@@ -1,0 +1,3 @@
+code,name,customer_type
+QAIMP01,QA Import Customer One,FORWARDER
+QAIMP02,QA Import Customer Two,AGENT

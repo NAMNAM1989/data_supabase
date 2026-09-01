@@ -1,0 +1,244 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { Upload } from "lucide-react";
+import { toast } from "sonner";
+
+import { commitImportAction, previewImportAction } from "@/app/(app)/import/actions";
+import { useProfile } from "@/components/providers/profile-provider";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { applyColumnMapping, autoMapColumns } from "@/lib/import/column-mapping";
+import { parseSpreadsheet } from "@/lib/import/parse-spreadsheet";
+import type { ImportEntityType, ImportPreviewRow, ImportRowAction } from "@/lib/import/types";
+import { canPerform } from "@/lib/auth/permissions";
+
+const ENTITY_OPTIONS: Array<{ value: ImportEntityType; label: string }> = [
+  { value: "customers", label: "Customers" },
+  { value: "parties", label: "Parties" },
+  { value: "drivers", label: "Drivers" },
+  { value: "vehicles", label: "Vehicles" },
+  { value: "commodities", label: "Commodities" },
+];
+
+function statusVariant(status: ImportPreviewRow["status"]) {
+  if (status === "valid") return "default" as const;
+  if (status === "duplicate") return "secondary" as const;
+  if (status === "warning") return "outline" as const;
+  return "destructive" as const;
+}
+
+export function ImportPageClient() {
+  const { role } = useProfile();
+  const canImport = canPerform(role, "import");
+  const [entity, setEntity] = useState<ImportEntityType>("customers");
+  const [fileName, setFileName] = useState("");
+  const [previewRows, setPreviewRows] = useState<ImportPreviewRow[]>([]);
+  const [summary, setSummary] = useState({ total: 0, valid: 0, warnings: 0, errors: 0, duplicates: 0 });
+  const [loading, setLoading] = useState(false);
+  const [committing, setCommitting] = useState(false);
+
+  const selectedCount = useMemo(
+    () => previewRows.filter((row) => row.action !== "skip" && row.status !== "error").length,
+    [previewRows],
+  );
+
+  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setLoading(true);
+    setFileName(file.name);
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const parsed = parseSpreadsheet(buffer);
+      const mapping = autoMapColumns(entity, parsed.headers);
+      const mappedRows = applyColumnMapping(parsed.rows, mapping);
+
+      const result = await previewImportAction({ entity, rows: mappedRows });
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+
+      setPreviewRows(result.data?.rows ?? []);
+      setSummary({
+        total: result.data?.total ?? 0,
+        valid: result.data?.valid ?? 0,
+        warnings: result.data?.warnings ?? 0,
+        errors: result.data?.errors ?? 0,
+        duplicates: result.data?.duplicates ?? 0,
+      });
+      toast.success(`Đã load ${result.data?.total ?? 0} dòng`);
+    } catch {
+      toast.error("Không thể đọc file");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function updateRowAction(rowNumber: number, action: ImportRowAction) {
+    setPreviewRows((rows) => rows.map((row) => (row.rowNumber === rowNumber ? { ...row, action } : row)));
+  }
+
+  async function handleCommit() {
+    setCommitting(true);
+    const result = await commitImportAction({
+      entity,
+      rows: previewRows.map((row) => ({
+        rowNumber: row.rowNumber,
+        action: row.action,
+        data: row.data,
+        matchId: row.matchId,
+      })),
+    });
+    setCommitting(false);
+
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+
+    const data = result.data;
+    toast.success(`Import xong: ${data?.created} tạo, ${data?.updated} cập nhật, ${data?.skipped} bỏ qua`);
+    if (data?.errors.length) {
+      toast.error(`${data.errors.length} dòng lỗi`);
+    }
+    setPreviewRows([]);
+    setSummary({ total: 0, valid: 0, warnings: 0, errors: 0, duplicates: 0 });
+    setFileName("");
+  }
+
+  if (!canImport) {
+    return <p className="text-muted-foreground">Bạn không có quyền import dữ liệu.</p>;
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Import</h1>
+        <p className="text-sm text-muted-foreground">
+          Upload Excel/CSV → preview → validate → commit (có audit IMPORT)
+        </p>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">1. Chọn loại dữ liệu & file</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2">
+          <div className="flex flex-col gap-2">
+            <Label>Entity</Label>
+            <Select value={entity} onValueChange={(v) => setEntity((v ?? "customers") as ImportEntityType)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ENTITY_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="import-file">File (.xlsx, .xls, .csv)</Label>
+            <Input id="import-file" type="file" accept=".xlsx,.xls,.csv" onChange={handleFileChange} disabled={loading} />
+            {fileName ? <p className="text-xs text-muted-foreground">{fileName}</p> : null}
+          </div>
+        </CardContent>
+      </Card>
+
+      {previewRows.length ? (
+        <>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="outline">Total: {summary.total}</Badge>
+            <Badge>Valid: {summary.valid}</Badge>
+            <Badge variant="secondary">Duplicates: {summary.duplicates}</Badge>
+            <Badge variant="destructive">Errors: {summary.errors}</Badge>
+            <Badge variant="outline">Selected: {selectedCount}</Badge>
+          </div>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base">2. Preview</CardTitle>
+              <Button onClick={handleCommit} disabled={committing || selectedCount === 0}>
+                <Upload />
+                {committing ? "Đang import..." : `Import ${selectedCount} dòng`}
+              </Button>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>#</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Preview</TableHead>
+                    <TableHead>Match</TableHead>
+                    <TableHead>Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {previewRows.map((row) => (
+                    <TableRow key={row.rowNumber}>
+                      <TableCell>{row.rowNumber}</TableCell>
+                      <TableCell>
+                        <Badge variant={statusVariant(row.status)}>{row.status}</Badge>
+                      </TableCell>
+                      <TableCell className="max-w-xs truncate text-sm">
+                        {Object.entries(row.data)
+                          .filter(([, value]) => value)
+                          .slice(0, 3)
+                          .map(([key, value]) => `${key}: ${value}`)
+                          .join(" · ")}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {row.matchLabel ?? row.message ?? "—"}
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={row.action}
+                          onValueChange={(v) => updateRowAction(row.rowNumber, (v ?? "skip") as ImportRowAction)}
+                          disabled={row.status === "error"}
+                        >
+                          <SelectTrigger className="w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="create">Create</SelectItem>
+                            <SelectItem value="update">Update</SelectItem>
+                            <SelectItem value="skip">Skip</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </>
+      ) : null}
+    </div>
+  );
+}

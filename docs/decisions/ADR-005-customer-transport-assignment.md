@@ -59,9 +59,7 @@ TECSOPS cần biết "customer này dùng xe/tài xế nào mặc định" khi t
 
 ## Decision
 
-**Pending stakeholder confirmation.**
-
-Interim plan: **Implement app support for existing tables (Option A)** unless explicitly rejected.
+**Accepted Option A** (2026-08-28): Giữ `customer_drivers` và `customer_vehicles` như **Customer Transport Preferences** — không phải ownership. UI sẽ có tab "Preferred Drivers/Vehicles" trong Customer detail.
 
 ## Consequences if Option A accepted
 
@@ -72,6 +70,4 @@ Interim plan: **Implement app support for existing tables (Option A)** unless ex
 
 ## Action required
 
-Stakeholder (Nam Nam) xác nhận:
-- [ ] Option A: Giữ customer_drivers/vehicles as preferences
-- [ ] Option B: Xóa tables, migrate away
+- [x] Option A: Giữ customer_drivers/vehicles as preferences (accepted 2026-08-28)

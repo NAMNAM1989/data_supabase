@@ -21,6 +21,13 @@ export class AppError extends Error {
 }
 
 export function mapSupabaseError(error: PostgrestError): AppError {
+  console.error("[supabase]", {
+    code: error.code,
+    message: error.message,
+    details: error.details,
+    hint: error.hint,
+  });
+
   if (error.code === "23505") {
     return new AppError("DUPLICATE", "Dữ liệu đã tồn tại");
   }

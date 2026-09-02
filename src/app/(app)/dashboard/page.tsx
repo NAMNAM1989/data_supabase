@@ -34,7 +34,18 @@ const statCards = [
 export default async function DashboardPage() {
   const supabase = await createClient();
   const [stats, recentAudit] = await Promise.all([
-    getDashboardStats(supabase),
+    getDashboardStats(supabase).catch((error) => {
+      console.error("[dashboard] stats failed:", error);
+      return {
+        totalCustomers: 0,
+        totalShippers: 0,
+        totalConsignees: 0,
+        totalCommodities: 0,
+        totalDrivers: 0,
+        totalVehicles: 0,
+        inactiveRecords: 0,
+      };
+    }),
     getRecentAuditLogs(supabase, 8).catch(() => []),
   ]);
 

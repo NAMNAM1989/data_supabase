@@ -73,11 +73,11 @@ export function CustomersPageClient() {
       return;
     }
 
-    if (!confirm(`Xóa (archive) customer "${customer.code} — ${customer.name}"?`)) return;
+    if (!confirm(`Xóa customer "${customer.code} — ${customer.name}" khỏi danh sách?`)) return;
     const result = await archiveCustomerAction(customer.id);
     if (result.error) toast.error(result.error);
     else {
-      toast.success("Đã xóa (archive) customer");
+      toast.success("Đã xóa customer khỏi danh sách");
       refetch();
     }
   }
@@ -216,7 +216,7 @@ export function CustomersPageClient() {
             <SelectItem value="ALL">All status</SelectItem>
             <SelectItem value="ACTIVE">Active</SelectItem>
             <SelectItem value="INACTIVE">Inactive</SelectItem>
-            <SelectItem value="ARCHIVED">Archived</SelectItem>
+            <SelectItem value="ARCHIVED">Đã xóa</SelectItem>
           </SelectContent>
         </Select>
       </div>

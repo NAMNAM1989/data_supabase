@@ -24,6 +24,8 @@ export async function getCustomers(supabase: Supabase, filters?: CustomerFilters
 
   if (filters?.status) {
     query = query.eq("status", filters.status);
+  } else {
+    query = query.neq("status", "ARCHIVED");
   }
   if (filters?.customerType) {
     query = query.eq("customer_type", filters.customerType);

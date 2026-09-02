@@ -14,6 +14,8 @@ export async function getCommodities(supabase: Supabase, filters?: CommodityFilt
 
   if (filters?.status) {
     query = query.eq("status", filters.status);
+  } else {
+    query = query.neq("status", "ARCHIVED");
   }
   if (filters?.search) {
     const term = `%${filters.search.trim()}%`;
@@ -79,4 +81,12 @@ export async function updateCommodity(
 
   if (error) throw mapSupabaseError(error);
   return data;
+}
+
+export async function archiveCommodity(supabase: Supabase, id: string) {
+  return updateCommodity(supabase, id, { status: "ARCHIVED" });
+}
+
+export async function restoreCommodity(supabase: Supabase, id: string) {
+  return updateCommodity(supabase, id, { status: "ACTIVE" });
 }

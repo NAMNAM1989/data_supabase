@@ -18,6 +18,8 @@ export async function getParties(supabase: Supabase, filters?: PartyFilters) {
 
   if (filters?.status) {
     query = query.eq("status", filters.status);
+  } else {
+    query = query.neq("status", "ARCHIVED");
   }
   if (filters?.search) {
     const term = `%${filters.search.trim()}%`;

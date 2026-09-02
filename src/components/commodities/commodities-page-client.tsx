@@ -2,15 +2,18 @@
 
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
+  archiveCommodityAction,
   createCommodityAction,
+  restoreCommodityAction,
   updateCommodityAction,
 } from "@/app/(app)/commodities/actions";
 import { useProfile } from "@/components/providers/profile-provider";
 import { EditRowButton, WriteAccessHint } from "@/components/shared/edit-row-actions";
+import { IconActionButton } from "@/components/shared/icon-action-button";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { TableEmptyRow, TableErrorRow, TableLoadingRows } from "@/components/shared/table-states";
 import { Button } from "@/components/ui/button";
@@ -40,7 +43,7 @@ import {
 } from "@/components/ui/table";
 import { useCommodities } from "@/hooks/use-commodities";
 import { useSubmitLock } from "@/hooks/use-submit-lock";
-import { canWrite } from "@/lib/auth/permissions";
+import { canPerform, canWrite } from "@/lib/auth/permissions";
 import { formString } from "@/lib/form";
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/types/database";
@@ -63,6 +66,26 @@ export function CommoditiesPageClient() {
   const editFromQuery =
     editId && data?.length ? (data.find((item) => item.id === editId) ?? null) : null;
   const editRow = manualEdit ?? editFromQuery;
+
+  async function handleArchive(item: CommodityRow) {
+    if (item.status === "ARCHIVED") {
+      const result = await restoreCommodityAction(item.id);
+      if (result.error) toast.error(result.error);
+      else {
+        toast.success("Đã khôi phục commodity");
+        refetch();
+      }
+      return;
+    }
+
+    if (!confirm(`Xóa commodity "${item.name}" khỏi danh sách?`)) return;
+    const result = await archiveCommodityAction(item.id);
+    if (result.error) toast.error(result.error);
+    else {
+      toast.success("Đã xóa commodity khỏi danh sách");
+      refetch();
+    }
+  }
 
   async function handleCreate(formData: FormData) {
     await runLocked(async () => {
@@ -156,7 +179,7 @@ export function CommoditiesPageClient() {
               <TableHead>English</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Status</TableHead>
-              {canWrite(role) ? <TableHead className="w-24">Thao tác</TableHead> : null}
+              {canWrite(role) ? <TableHead className="w-36">Thao tác</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -182,10 +205,33 @@ export function CommoditiesPageClient() {
                   </TableCell>
                   {canWrite(role) ? (
                     <TableCell>
-                      <EditRowButton
-                        label={`commodity ${item.code ?? item.name}`}
-                        onClick={() => setManualEdit(item)}
-                      />
+                      <div className="flex flex-wrap gap-1">
+                        <EditRowButton
+                          label={`commodity ${item.code ?? item.name}`}
+                          onClick={() => setManualEdit(item)}
+                        />
+                        {canPerform(role, "archive") ? (
+                          item.status === "ARCHIVED" ? (
+                            <IconActionButton
+                              label={`Khôi phục commodity ${item.name}`}
+                              tooltip="Khôi phục"
+                              onClick={() => handleArchive(item)}
+                            >
+                              <RotateCcw />
+                            </IconActionButton>
+                          ) : (
+                            <IconActionButton
+                              label={`Xóa commodity ${item.name}`}
+                              tooltip="Xóa"
+                              variant="ghost"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => handleArchive(item)}
+                            >
+                              <Trash2 />
+                            </IconActionButton>
+                          )
+                        ) : null}
+                      </div>
                     </TableCell>
                   ) : null}
                 </TableRow>

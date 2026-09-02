@@ -58,11 +58,11 @@ export function PartiesPageClient() {
       return;
     }
 
-    if (!confirm(`Xóa (archive) party "${party.name}"?`)) return;
+    if (!confirm(`Xóa party "${party.name}" khỏi danh sách?`)) return;
     const result = await archivePartyAction(party.id);
     if (result.error) toast.error(result.error);
     else {
-      toast.success("Đã xóa (archive) party");
+      toast.success("Đã xóa party khỏi danh sách");
       refetch();
     }
   }

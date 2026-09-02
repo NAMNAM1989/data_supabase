@@ -2,12 +2,17 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { createPartyAction } from "@/app/(app)/parties/actions";
+import {
+  archivePartyAction,
+  createPartyAction,
+  restorePartyAction,
+} from "@/app/(app)/parties/actions";
 import { useProfile } from "@/components/providers/profile-provider";
 import { EditRowLink, WriteAccessHint } from "@/components/shared/edit-row-actions";
+import { IconActionButton } from "@/components/shared/icon-action-button";
 import { TableLoadingRows } from "@/components/shared/table-states";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
@@ -31,8 +36,9 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useParties } from "@/hooks/use-parties";
 import { useSubmitLock } from "@/hooks/use-submit-lock";
-import { canWrite } from "@/lib/auth/permissions";
+import { canPerform, canWrite } from "@/lib/auth/permissions";
 import { formString } from "@/lib/form";
+import type { PartyWithUsage } from "@/lib/master-data/parties";
 
 export function PartiesPageClient() {
   const { role } = useProfile();
@@ -40,6 +46,26 @@ export function PartiesPageClient() {
   const [open, setOpen] = useState(false);
   const { saving, runLocked } = useSubmitLock();
   const { data, isLoading, refetch } = useParties({ search: search || undefined });
+
+  async function handleArchive(party: PartyWithUsage) {
+    if (party.status === "ARCHIVED") {
+      const result = await restorePartyAction(party.id);
+      if (result.error) toast.error(result.error);
+      else {
+        toast.success("Đã khôi phục party");
+        refetch();
+      }
+      return;
+    }
+
+    if (!confirm(`Xóa (archive) party "${party.name}"?`)) return;
+    const result = await archivePartyAction(party.id);
+    if (result.error) toast.error(result.error);
+    else {
+      toast.success("Đã xóa (archive) party");
+      refetch();
+    }
+  }
 
   async function handleCreate(formData: FormData) {
     await runLocked(async () => {
@@ -129,7 +155,7 @@ export function PartiesPageClient() {
               <TableHead>Address</TableHead>
               <TableHead className="text-right">Customers</TableHead>
               <TableHead>Status</TableHead>
-              {canWrite(role) ? <TableHead className="w-24">Thao tác</TableHead> : null}
+              {canWrite(role) ? <TableHead className="w-36">Thao tác</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -153,7 +179,33 @@ export function PartiesPageClient() {
                   </TableCell>
                   {canWrite(role) ? (
                     <TableCell>
-                      <EditRowLink href={`/parties/${party.id}`} label={`party ${party.code || party.name}`} />
+                      <div className="flex flex-wrap gap-1">
+                        <EditRowLink
+                          href={`/parties/${party.id}`}
+                          label={`party ${party.code || party.name}`}
+                        />
+                        {canPerform(role, "archive") ? (
+                          party.status === "ARCHIVED" ? (
+                            <IconActionButton
+                              label={`Khôi phục party ${party.name}`}
+                              tooltip="Khôi phục"
+                              onClick={() => handleArchive(party)}
+                            >
+                              <RotateCcw />
+                            </IconActionButton>
+                          ) : (
+                            <IconActionButton
+                              label={`Xóa party ${party.name}`}
+                              tooltip="Xóa"
+                              variant="ghost"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => handleArchive(party)}
+                            >
+                              <Trash2 />
+                            </IconActionButton>
+                          )
+                        ) : null}
+                      </div>
                     </TableCell>
                   ) : null}
                 </TableRow>

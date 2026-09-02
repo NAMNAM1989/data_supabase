@@ -2,12 +2,17 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { createCustomerAction } from "@/app/(app)/customers/actions";
+import {
+  archiveCustomerAction,
+  createCustomerAction,
+  restoreCustomerAction,
+} from "@/app/(app)/customers/actions";
 import { useProfile } from "@/components/providers/profile-provider";
 import { EditRowLink, WriteAccessHint } from "@/components/shared/edit-row-actions";
+import { IconActionButton } from "@/components/shared/icon-action-button";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { TableLoadingRows } from "@/components/shared/table-states";
 import { Button } from "@/components/ui/button";
@@ -40,6 +45,7 @@ import { useCustomers } from "@/hooks/use-customers";
 import { useSubmitLock } from "@/hooks/use-submit-lock";
 import { canPerform, canWrite } from "@/lib/auth/permissions";
 import { formString, formValue } from "@/lib/form";
+import type { CustomerListItem } from "@/lib/master-data/customers";
 import { CUSTOMER_TYPES } from "@/lib/validation/customer";
 
 export function CustomersPageClient() {
@@ -55,6 +61,26 @@ export function CustomersPageClient() {
     status: status === "ALL" ? undefined : (status as "ACTIVE" | "INACTIVE" | "ARCHIVED"),
     customerType: type === "ALL" ? undefined : type,
   });
+
+  async function handleArchive(customer: CustomerListItem) {
+    if (customer.status === "ARCHIVED") {
+      const result = await restoreCustomerAction(customer.id);
+      if (result.error) toast.error(result.error);
+      else {
+        toast.success("Đã khôi phục customer");
+        refetch();
+      }
+      return;
+    }
+
+    if (!confirm(`Xóa (archive) customer "${customer.code} — ${customer.name}"?`)) return;
+    const result = await archiveCustomerAction(customer.id);
+    if (result.error) toast.error(result.error);
+    else {
+      toast.success("Đã xóa (archive) customer");
+      refetch();
+    }
+  }
 
   async function handleCreate(formData: FormData) {
     await runLocked(async () => {
@@ -206,7 +232,7 @@ export function CustomersPageClient() {
               <TableHead className="text-right">CNEE</TableHead>
               <TableHead className="text-right">Goods</TableHead>
               <TableHead>Status</TableHead>
-              {canWrite(role) ? <TableHead className="w-24">Thao tác</TableHead> : null}
+              {canWrite(role) ? <TableHead className="w-36">Thao tác</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -236,7 +262,33 @@ export function CustomersPageClient() {
                   </TableCell>
                   {canWrite(role) ? (
                     <TableCell>
-                      <EditRowLink href={`/customers/${customer.id}`} label={`customer ${customer.code}`} />
+                      <div className="flex flex-wrap gap-1">
+                        <EditRowLink
+                          href={`/customers/${customer.id}`}
+                          label={`customer ${customer.code}`}
+                        />
+                        {canPerform(role, "archive") ? (
+                          customer.status === "ARCHIVED" ? (
+                            <IconActionButton
+                              label={`Khôi phục customer ${customer.code}`}
+                              tooltip="Khôi phục"
+                              onClick={() => handleArchive(customer)}
+                            >
+                              <RotateCcw />
+                            </IconActionButton>
+                          ) : (
+                            <IconActionButton
+                              label={`Xóa customer ${customer.code}`}
+                              tooltip="Xóa"
+                              variant="ghost"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => handleArchive(customer)}
+                            >
+                              <Trash2 />
+                            </IconActionButton>
+                          )
+                        ) : null}
+                      </div>
                     </TableCell>
                   ) : null}
                 </TableRow>

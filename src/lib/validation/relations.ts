@@ -31,3 +31,22 @@ export const linkCommoditySchema = z.object({
 
 export type LinkPartyInput = z.infer<typeof linkPartySchema>;
 export type LinkCommodityInput = z.infer<typeof linkCommoditySchema>;
+
+export const updatePartyRelationSchema = z.object({
+  relation_id: z.string().uuid(),
+  customer_id: z.string().uuid(),
+  party_id: z.string().uuid(),
+  destination_id: z.string().uuid().optional().nullable(),
+  is_default: z.boolean().default(false),
+});
+
+export const updateCommodityRelationSchema = z.object({
+  relation_id: z.string().uuid(),
+  customer_id: z.string().uuid(),
+  commodity_id: z.string().uuid(),
+  custom_description: z.string().trim().optional().nullable(),
+  is_default: z.boolean().default(false),
+});
+
+export type UpdatePartyRelationInput = z.infer<typeof updatePartyRelationSchema>;
+export type UpdateCommodityRelationInput = z.infer<typeof updateCommodityRelationSchema>;

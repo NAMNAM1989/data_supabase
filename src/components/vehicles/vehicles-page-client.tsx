@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { createVehicleAction } from "@/app/(app)/vehicles/actions";
 import { useProfile } from "@/components/providers/profile-provider";
 import { EditRowLink, WriteAccessHint } from "@/components/shared/edit-row-actions";
+import { TableLoadingRows } from "@/components/shared/table-states";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,7 +20,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -130,11 +130,7 @@ export function VehiclesPageClient() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={canWrite(role) ? 7 : 6}>
-                  <Skeleton className="h-4 w-full" />
-                </TableCell>
-              </TableRow>
+              <TableLoadingRows colSpan={canWrite(role) ? 7 : 6} />
             ) : data?.length ? (
               data.map((vehicle) => (
                 <TableRow key={vehicle.id}>
@@ -156,7 +152,7 @@ export function VehiclesPageClient() {
                     <TableCell>
                       <EditRowLink
                         href={`/vehicles/${vehicle.id}`}
-                        label={vehicle.plate_display ?? vehicle.plate_number}
+                        label={`vehicle ${vehicle.plate_display ?? vehicle.plate_number}`}
                       />
                     </TableCell>
                   ) : null}

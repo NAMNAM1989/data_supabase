@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -51,12 +52,16 @@ export function AppHeader({ profile, email }: AppHeaderProps) {
           {profile?.role ? <Badge variant="secondary">{profile.role}</Badge> : null}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel>Tài khoản</DropdownMenuLabel>
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Tài khoản</DropdownMenuLabel>
+          </DropdownMenuGroup>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={handleSignOut}>
-            <LogOut />
-            Đăng xuất
-          </DropdownMenuItem>
+          <DropdownMenuGroup>
+            <DropdownMenuItem onClick={handleSignOut}>
+              <LogOut />
+              Đăng xuất
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
     </header>

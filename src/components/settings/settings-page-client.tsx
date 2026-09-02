@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { updateSelfSettingsAction } from "@/app/(app)/settings/actions";
@@ -22,16 +23,22 @@ type SettingsPageClientProps = {
 export function SettingsPageClient({ profile, email, role }: SettingsPageClientProps) {
   const { saving, runLocked } = useSubmitLock();
   const isAdmin = canPerform(role, "manage_users");
+  const [initialDisplayName, setInitialDisplayName] = useState(profile?.display_name ?? "");
+  const [displayName, setDisplayName] = useState(initialDisplayName);
+  const dirty = displayName !== initialDisplayName;
 
   async function handleSave(formData: FormData) {
     await runLocked(async () => {
+      const nextName = String(formData.get("display_name") ?? "");
       const result = await updateSelfSettingsAction({
-        display_name: formData.get("display_name"),
+        display_name: nextName,
       });
       if (result.error) {
         toast.error(result.error);
         return;
       }
+      setInitialDisplayName(nextName);
+      setDisplayName(nextName);
       toast.success("Đã lưu cài đặt");
     });
   }
@@ -51,14 +58,23 @@ export function SettingsPageClient({ profile, email, role }: SettingsPageClientP
           <form action={handleSave} className="grid max-w-lg gap-3">
             <div className="flex flex-col gap-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" value={email ?? ""} disabled />
+              <Input
+                id="email"
+                value={email || ""}
+                placeholder="Không có email"
+                readOnly
+              />
+              <p className="text-xs text-muted-foreground">
+                Email đăng nhập không thể thay đổi tại đây
+              </p>
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="display_name">Display Name</Label>
               <Input
                 id="display_name"
                 name="display_name"
-                defaultValue={profile?.display_name ?? ""}
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
                 required
               />
             </div>
@@ -68,7 +84,7 @@ export function SettingsPageClient({ profile, email, role }: SettingsPageClientP
                 <Badge variant="secondary">{profile?.role ?? role}</Badge>
               </div>
             </div>
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" disabled={saving || !dirty}>
               {saving ? "Đang lưu..." : "Lưu thay đổi"}
             </Button>
           </form>

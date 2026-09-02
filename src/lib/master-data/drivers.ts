@@ -1,4 +1,4 @@
-import { mapSupabaseError, type Supabase } from "@/lib/errors";
+import { AppError, mapSupabaseError, type Supabase } from "@/lib/errors";
 import type { DriverInput, DriverUpdateInput } from "@/lib/validation/driver";
 import type { Tables } from "@/types/database";
 
@@ -256,4 +256,68 @@ export async function setPreferredDriverVehicle(supabase: Supabase, relationId: 
 
   if (error) throw mapSupabaseError(error);
   return data;
+}
+
+export async function updateDriverVehicle(
+  supabase: Supabase,
+  relationId: string,
+  input: {
+    driver_id?: string;
+    vehicle_id?: string;
+    is_preferred?: boolean;
+  },
+) {
+  const { data: current, error: fetchError } = await supabase
+    .from("driver_vehicles")
+    .select("*")
+    .eq("id", relationId)
+    .single();
+
+  if (fetchError) throw mapSupabaseError(fetchError);
+
+  const nextDriverId = input.driver_id ?? current.driver_id;
+  const nextVehicleId = input.vehicle_id ?? current.vehicle_id;
+
+  if (nextDriverId !== current.driver_id || nextVehicleId !== current.vehicle_id) {
+    const { data: dup } = await supabase
+      .from("driver_vehicles")
+      .select("id")
+      .eq("driver_id", nextDriverId)
+      .eq("vehicle_id", nextVehicleId)
+      .neq("status", "ARCHIVED")
+      .neq("id", relationId)
+      .maybeSingle();
+
+    if (dup) {
+      throw new AppError("DUPLICATE", "Assignment driver ↔ vehicle đã tồn tại");
+    }
+  }
+
+  if (input.is_preferred === true) {
+    await supabase
+      .from("driver_vehicles")
+      .update({ is_preferred: false })
+      .eq("driver_id", nextDriverId)
+      .eq("status", "ACTIVE")
+      .neq("id", relationId);
+  }
+
+  const patch: {
+    driver_id?: string;
+    vehicle_id?: string;
+    is_preferred?: boolean;
+  } = {};
+  if (input.driver_id !== undefined) patch.driver_id = input.driver_id;
+  if (input.vehicle_id !== undefined) patch.vehicle_id = input.vehicle_id;
+  if (input.is_preferred !== undefined) patch.is_preferred = input.is_preferred;
+
+  const { data, error } = await supabase
+    .from("driver_vehicles")
+    .update(patch)
+    .eq("id", relationId)
+    .select()
+    .single();
+
+  if (error) throw mapSupabaseError(error);
+  return { before: current, after: data };
 }

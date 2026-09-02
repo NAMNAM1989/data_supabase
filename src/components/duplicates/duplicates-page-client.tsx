@@ -27,8 +27,8 @@ const ENTITY_HREF: Record<DuplicateGroup["entity"], (id: string) => string> = {
   party: (id) => `/parties/${id}`,
   driver: (id) => `/drivers/${id}`,
   vehicle: (id) => `/vehicles/${id}`,
-  commodity: () => "/commodities",
-  destination: () => "/destinations",
+  commodity: (id) => `/commodities?edit=${id}`,
+  destination: (id) => `/destinations?edit=${id}`,
 };
 
 export function DuplicatesPageClient() {
@@ -91,7 +91,14 @@ export function DuplicatesPageClient() {
                 <TableRow>
                   <TableHead>Record</TableHead>
                   <TableHead>Meta</TableHead>
-                  <TableHead className="w-24" />
+                  <TableHead className="w-40">
+                    <div className="flex flex-col gap-0.5">
+                      <span>Mở</span>
+                      <span className="text-xs font-normal text-muted-foreground">
+                        Merge cần xác nhận (review + navigate)
+                      </span>
+                    </div>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -100,7 +107,10 @@ export function DuplicatesPageClient() {
                     <TableCell>{record.label}</TableCell>
                     <TableCell className="text-muted-foreground">{record.meta ?? "—"}</TableCell>
                     <TableCell>
-                      <Link href={ENTITY_HREF[group.entity](record.id)} className="text-sm hover:underline">
+                      <Link
+                        href={ENTITY_HREF[group.entity](record.id)}
+                        className="text-sm hover:underline"
+                      >
                         Mở
                       </Link>
                     </TableCell>

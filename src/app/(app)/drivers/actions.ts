@@ -14,10 +14,14 @@ import {
   setPreferredDriverVehicle,
   unassignVehicle,
   updateDriver,
+  updateDriverVehicle,
 } from "@/lib/master-data/drivers";
 import { createClient } from "@/lib/supabase/server";
 import { driverSchema, driverUpdateSchema } from "@/lib/validation/driver";
-import { assignDriverVehicleSchema } from "@/lib/validation/transport-relations";
+import {
+  assignDriverVehicleSchema,
+  updateDriverVehicleSchema,
+} from "@/lib/validation/transport-relations";
 import type { Json } from "@/types/database";
 
 async function requireWrite() {
@@ -191,6 +195,45 @@ export async function setPreferredVehicleAction(relationId: string, driverId: st
   } catch (error) {
     return {
       error: error instanceof AppError ? error.message : "Không thể đặt xe ưu tiên",
+    };
+  }
+}
+
+export async function updateDriverVehicleAction(input: unknown) {
+  const session = await requireWrite();
+  const parsed = updateDriverVehicleSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
+  }
+
+  const supabase = await createClient();
+  try {
+    const result = await updateDriverVehicle(supabase, parsed.data.relation_id, {
+      driver_id: parsed.data.driver_id,
+      vehicle_id: parsed.data.vehicle_id,
+      is_preferred: parsed.data.is_preferred,
+    });
+    await writeAuditLog(supabase, {
+      actorUserId: session.userId,
+      action: "UPDATE",
+      tableName: "driver_vehicles",
+      recordId: parsed.data.relation_id,
+      oldData: result.before as unknown as Json,
+      newData: result.after as unknown as Json,
+    });
+    revalidatePath("/driver-vehicles");
+    revalidatePath(`/drivers/${result.after.driver_id}`);
+    revalidatePath(`/vehicles/${result.after.vehicle_id}`);
+    if (result.before.driver_id !== result.after.driver_id) {
+      revalidatePath(`/drivers/${result.before.driver_id}`);
+    }
+    if (result.before.vehicle_id !== result.after.vehicle_id) {
+      revalidatePath(`/vehicles/${result.before.vehicle_id}`);
+    }
+    return { data: result.after };
+  } catch (error) {
+    return {
+      error: error instanceof AppError ? error.message : "Không thể cập nhật assignment",
     };
   }
 }

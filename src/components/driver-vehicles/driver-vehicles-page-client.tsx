@@ -5,9 +5,16 @@ import Link from "next/link";
 import { Plus, Star, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { assignVehicleAction, setPreferredVehicleAction, unassignVehicleAction } from "@/app/(app)/drivers/actions";
+import {
+  assignVehicleAction,
+  setPreferredVehicleAction,
+  unassignVehicleAction,
+  updateDriverVehicleAction,
+} from "@/app/(app)/drivers/actions";
 import { useProfile } from "@/components/providers/profile-provider";
-import { EditRowLink, WriteAccessHint } from "@/components/shared/edit-row-actions";
+import { EditRowButton, WriteAccessHint } from "@/components/shared/edit-row-actions";
+import { IconActionButton } from "@/components/shared/icon-action-button";
+import { TableEmptyRow, TableErrorRow, TableLoadingRows } from "@/components/shared/table-states";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -25,7 +32,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -39,15 +45,38 @@ import { useDriverVehicleAssignments, useVehicles } from "@/hooks/use-vehicles";
 import { useSubmitLock } from "@/hooks/use-submit-lock";
 import { canWrite } from "@/lib/auth/permissions";
 
+type AssignmentRow = NonNullable<
+  ReturnType<typeof useDriverVehicleAssignments>["data"]
+>[number];
+
 export function DriverVehiclesPageClient() {
   const { role } = useProfile();
   const assignments = useDriverVehicleAssignments();
   const drivers = useDrivers();
   const vehicles = useVehicles();
   const [open, setOpen] = useState(false);
+  const [editRow, setEditRow] = useState<AssignmentRow | null>(null);
   const { saving, runLocked } = useSubmitLock();
   const [driverId, setDriverId] = useState("");
   const [vehicleId, setVehicleId] = useState("");
+  const [editDriverId, setEditDriverId] = useState("");
+  const [editVehicleId, setEditVehicleId] = useState("");
+  const [editPreferred, setEditPreferred] = useState(false);
+
+  const colSpan = canWrite(role) ? 4 : 3;
+
+  function openEdit(row: AssignmentRow) {
+    setEditRow(row);
+    setEditDriverId(row.driver_id);
+    setEditVehicleId(row.vehicle_id);
+    setEditPreferred(Boolean(row.is_preferred));
+  }
+
+  function assignmentLabel(row: AssignmentRow) {
+    const driverName = row.driver?.full_name ?? "driver";
+    const plate = row.vehicle?.plate_display ?? row.vehicle?.plate_number ?? "vehicle";
+    return `${driverName} ↔ ${plate}`;
+  }
 
   async function handleAssign() {
     if (!driverId || !vehicleId) {
@@ -65,11 +94,35 @@ export function DriverVehiclesPageClient() {
     });
   }
 
+  async function handleUpdate() {
+    if (!editRow || !editDriverId || !editVehicleId) {
+      toast.error("Chọn driver và vehicle");
+      return;
+    }
+    await runLocked(async () => {
+      const result = await updateDriverVehicleAction({
+        relation_id: editRow.id,
+        driver_id: editDriverId,
+        vehicle_id: editVehicleId,
+        is_preferred: editPreferred,
+      });
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Đã cập nhật assignment");
+      setEditRow(null);
+      assignments.refetch();
+    });
+  }
+
   async function handleUnassign(
     relationId: string,
     driverIdToUnassign: string,
     vehicleIdToUnassign: string,
+    label: string,
   ) {
+    if (!confirm(`Gỡ assignment "${label}"?`)) return;
     const result = await unassignVehicleAction(relationId, driverIdToUnassign, vehicleIdToUnassign);
     if (result.error) toast.error(result.error);
     else {
@@ -162,76 +215,135 @@ export function DriverVehiclesPageClient() {
             </TableHeader>
             <TableBody>
               {assignments.isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={4}>
-                    <Skeleton className="h-4 w-full" />
-                  </TableCell>
-                </TableRow>
+                <TableLoadingRows colSpan={colSpan} />
+              ) : assignments.isError ? (
+                <TableErrorRow colSpan={colSpan} onRetry={() => assignments.refetch()} />
               ) : assignments.data?.length ? (
-                assignments.data.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell>
-                      {row.driver ? (
-                        <Link href={`/drivers/${row.driver.id}`} className="hover:underline">
-                          {row.driver.full_name}
-                        </Link>
-                      ) : "—"}
-                    </TableCell>
-                    <TableCell>
-                      {row.vehicle ? (
-                        <Link href={`/vehicles/${row.vehicle.id}`} className="hover:underline">
-                          {row.vehicle.plate_display ?? row.vehicle.plate_number}
-                        </Link>
-                      ) : "—"}
-                    </TableCell>
-                    <TableCell>{row.is_preferred ? "Yes" : "—"}</TableCell>
-                    {canWrite(role) ? (
+                assignments.data.map((row) => {
+                  const label = assignmentLabel(row);
+                  return (
+                    <TableRow key={row.id}>
                       <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {row.driver ? (
-                            <EditRowLink
-                              href={`/drivers/${row.driver.id}`}
-                              label={row.driver.full_name}
-                            />
-                          ) : null}
-                          {row.vehicle ? (
-                            <EditRowLink
-                              href={`/vehicles/${row.vehicle.id}`}
-                              label={row.vehicle.plate_display ?? row.vehicle.plate_number}
-                            />
-                          ) : null}
-                          <Button
-                            size="icon-xs"
-                            variant="ghost"
-                            onClick={() => handleSetPreferred(row.id, row.driver_id)}
-                            aria-label="Đặt xe ưu tiên"
-                          >
-                            <Star />
-                          </Button>
-                          <Button
-                            size="icon-xs"
-                            variant="ghost"
-                            onClick={() => handleUnassign(row.id, row.driver_id, row.vehicle_id)}
-                            aria-label="Gỡ assignment"
-                          >
-                            <Trash2 />
-                          </Button>
-                        </div>
+                        {row.driver ? (
+                          <Link href={`/drivers/${row.driver.id}`} className="hover:underline">
+                            {row.driver.full_name}
+                          </Link>
+                        ) : (
+                          "—"
+                        )}
                       </TableCell>
-                    ) : null}
-                  </TableRow>
-                ))
+                      <TableCell>
+                        {row.vehicle ? (
+                          <Link href={`/vehicles/${row.vehicle.id}`} className="hover:underline">
+                            {row.vehicle.plate_display ?? row.vehicle.plate_number}
+                          </Link>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                      <TableCell>{row.is_preferred ? "Yes" : "—"}</TableCell>
+                      {canWrite(role) ? (
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            <EditRowButton label={label} onClick={() => openEdit(row)} />
+                            <IconActionButton
+                              label={`Đặt ưu tiên ${label}`}
+                              tooltip="Đặt xe ưu tiên"
+                              onClick={() => handleSetPreferred(row.id, row.driver_id)}
+                            >
+                              <Star />
+                            </IconActionButton>
+                            <IconActionButton
+                              label={`Gỡ assignment ${label}`}
+                              tooltip="Gỡ assignment"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() =>
+                                handleUnassign(row.id, row.driver_id, row.vehicle_id, label)
+                              }
+                            >
+                              <Trash2 />
+                            </IconActionButton>
+                          </div>
+                        </TableCell>
+                      ) : null}
+                    </TableRow>
+                  );
+                })
               ) : (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground">
-                    Chưa có assignment
-                  </TableCell>
-                </TableRow>
+                <TableEmptyRow colSpan={colSpan} message="Chưa có assignment" />
               )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog
+        open={Boolean(editRow)}
+        onOpenChange={(openState) => {
+          if (!openState) setEditRow(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Sửa assignment</DialogTitle>
+          </DialogHeader>
+          {editRow ? (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2">
+                <Label>Driver</Label>
+                <Select value={editDriverId} onValueChange={(v) => setEditDriverId(v ?? "")}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Chọn driver" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(drivers.data ?? []).map((d) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label>Vehicle</Label>
+                <Select value={editVehicleId} onValueChange={(v) => setEditVehicleId(v ?? "")}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Chọn vehicle" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(vehicles.data ?? []).map((v) => (
+                      <SelectItem key={v.id} value={v.id}>
+                        {v.plate_display ?? v.plate_number}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={editPreferred}
+                  onChange={(e) => setEditPreferred(e.target.checked)}
+                />
+                Preferred
+              </label>
+              <div className="flex gap-2">
+                <Button onClick={handleUpdate} disabled={saving}>
+                  {saving ? "Đang lưu..." : "Lưu thay đổi"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={saving}
+                  onClick={() => setEditRow(null)}
+                >
+                  Hủy
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

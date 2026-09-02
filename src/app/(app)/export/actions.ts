@@ -2,24 +2,9 @@
 
 import { canPerform } from "@/lib/auth/permissions";
 import { getSession } from "@/lib/auth/session";
+import { csvFilename, toCsvWithBom } from "@/lib/csv";
 import { AppError } from "@/lib/errors";
 import { createClient } from "@/lib/supabase/server";
-
-function toCsv(headers: string[], rows: Array<Record<string, string | number | null>>) {
-  const escape = (value: string | number | null) => {
-    const text = String(value ?? "");
-    if (text.includes(",") || text.includes('"') || text.includes("\n")) {
-      return `"${text.replace(/"/g, '""')}"`;
-    }
-    return text;
-  };
-
-  const lines = [headers.join(",")];
-  for (const row of rows) {
-    lines.push(headers.map((header) => escape(row[header] ?? "")).join(","));
-  }
-  return lines.join("\n");
-}
 
 export async function exportCustomersCsvAction() {
   const session = await getSession();
@@ -38,7 +23,12 @@ export async function exportCustomersCsvAction() {
   }
 
   const headers = ["id", "code", "name", "customer_type", "tax_code", "phone", "email", "address", "status"];
-  return { data: { filename: "customers.csv", content: toCsv(headers, data ?? []) } };
+  return {
+    data: {
+      filename: csvFilename("customers"),
+      content: toCsvWithBom(headers, data ?? []),
+    },
+  };
 }
 
 export async function exportDriversCsvAction() {
@@ -58,7 +48,12 @@ export async function exportDriversCsvAction() {
   }
 
   const headers = ["id", "code", "full_name", "phone", "document_number", "license_number", "status"];
-  return { data: { filename: "drivers.csv", content: toCsv(headers, data ?? []) } };
+  return {
+    data: {
+      filename: csvFilename("drivers"),
+      content: toCsvWithBom(headers, data ?? []),
+    },
+  };
 }
 
 export async function exportVehiclesCsvAction() {
@@ -78,5 +73,10 @@ export async function exportVehiclesCsvAction() {
   }
 
   const headers = ["id", "plate_number", "plate_display", "vehicle_type", "brand", "model", "status"];
-  return { data: { filename: "vehicles.csv", content: toCsv(headers, data ?? []) } };
+  return {
+    data: {
+      filename: csvFilename("vehicles"),
+      content: toCsvWithBom(headers, data ?? []),
+    },
+  };
 }

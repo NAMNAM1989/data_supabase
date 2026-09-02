@@ -19,6 +19,7 @@ import {
   linkCustomerDriver,
   linkCustomerParty,
   linkCustomerVehicle,
+  setDefaultCustomerCommodity,
   setDefaultCustomerDriver,
   setDefaultCustomerParty,
   setDefaultCustomerVehicle,
@@ -26,13 +27,24 @@ import {
   unlinkCustomerDriver,
   unlinkCustomerParty,
   unlinkCustomerVehicle,
+  updateCustomerCommodity,
+  updateCustomerDriver,
+  updateCustomerParty,
+  updateCustomerVehicle,
 } from "@/lib/master-data/relations";
 import { createClient } from "@/lib/supabase/server";
 import { customerSchema, customerUpdateSchema } from "@/lib/validation/customer";
-import { linkCommoditySchema, linkPartySchema } from "@/lib/validation/relations";
+import {
+  linkCommoditySchema,
+  linkPartySchema,
+  updateCommodityRelationSchema,
+  updatePartyRelationSchema,
+} from "@/lib/validation/relations";
 import {
   linkCustomerDriverSchema,
   linkCustomerVehicleSchema,
+  updateCustomerDriverSchema,
+  updateCustomerVehicleSchema,
 } from "@/lib/validation/transport-relations";
 import type { Json } from "@/types/database";
 
@@ -384,6 +396,153 @@ export async function setDefaultVehiclePreferenceAction(relationId: string, cust
   } catch (error) {
     return {
       error: error instanceof AppError ? error.message : "Không thể đặt mặc định",
+    };
+  }
+}
+
+export async function updatePartyRelationAction(input: unknown) {
+  const session = await requireWrite();
+  const parsed = updatePartyRelationSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
+  }
+
+  const supabase = await createClient();
+  try {
+    const result = await updateCustomerParty(supabase, parsed.data.relation_id, {
+      party_id: parsed.data.party_id,
+      destination_id: parsed.data.destination_id ?? null,
+      is_default: parsed.data.is_default,
+    });
+    await writeAuditLog(supabase, {
+      actorUserId: session.userId,
+      action: "UPDATE",
+      tableName: "customer_parties",
+      recordId: parsed.data.relation_id,
+      oldData: result.before as unknown as Json,
+      newData: result.after as unknown as Json,
+    });
+    revalidatePath(`/customers/${parsed.data.customer_id}`);
+    revalidatePath("/parties");
+    return { data: result.after };
+  } catch (error) {
+    return {
+      error: error instanceof AppError ? error.message : "Không thể cập nhật quan hệ party",
+    };
+  }
+}
+
+export async function updateCommodityRelationAction(input: unknown) {
+  const session = await requireWrite();
+  const parsed = updateCommodityRelationSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
+  }
+
+  const supabase = await createClient();
+  try {
+    const result = await updateCustomerCommodity(supabase, parsed.data.relation_id, {
+      commodity_id: parsed.data.commodity_id,
+      custom_description: parsed.data.custom_description ?? null,
+      is_default: parsed.data.is_default,
+    });
+    await writeAuditLog(supabase, {
+      actorUserId: session.userId,
+      action: "UPDATE",
+      tableName: "customer_commodities",
+      recordId: parsed.data.relation_id,
+      oldData: result.before as unknown as Json,
+      newData: result.after as unknown as Json,
+    });
+    revalidatePath(`/customers/${parsed.data.customer_id}`);
+    revalidatePath("/commodities");
+    return { data: result.after };
+  } catch (error) {
+    return {
+      error: error instanceof AppError ? error.message : "Không thể cập nhật quan hệ commodity",
+    };
+  }
+}
+
+export async function setDefaultCommodityAction(relationId: string, customerId: string) {
+  const session = await requireWrite();
+  const supabase = await createClient();
+  try {
+    const relation = await setDefaultCustomerCommodity(supabase, relationId);
+    await writeAuditLog(supabase, {
+      actorUserId: session.userId,
+      action: "UPDATE",
+      tableName: "customer_commodities",
+      recordId: relationId,
+      newData: relation as unknown as Json,
+    });
+    revalidatePath(`/customers/${customerId}`);
+    return { data: relation };
+  } catch (error) {
+    return {
+      error: error instanceof AppError ? error.message : "Không thể đặt mặc định",
+    };
+  }
+}
+
+export async function updateDriverPreferenceAction(input: unknown) {
+  const session = await requireWrite();
+  const parsed = updateCustomerDriverSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
+  }
+
+  const supabase = await createClient();
+  try {
+    const result = await updateCustomerDriver(supabase, parsed.data.relation_id, {
+      driver_id: parsed.data.driver_id,
+      is_default: parsed.data.is_default,
+    });
+    await writeAuditLog(supabase, {
+      actorUserId: session.userId,
+      action: "UPDATE",
+      tableName: "customer_drivers",
+      recordId: parsed.data.relation_id,
+      oldData: result.before as unknown as Json,
+      newData: result.after as unknown as Json,
+    });
+    revalidatePath(`/customers/${parsed.data.customer_id}`);
+    revalidatePath("/drivers");
+    return { data: result.after };
+  } catch (error) {
+    return {
+      error: error instanceof AppError ? error.message : "Không thể cập nhật driver ưu tiên",
+    };
+  }
+}
+
+export async function updateVehiclePreferenceAction(input: unknown) {
+  const session = await requireWrite();
+  const parsed = updateCustomerVehicleSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
+  }
+
+  const supabase = await createClient();
+  try {
+    const result = await updateCustomerVehicle(supabase, parsed.data.relation_id, {
+      vehicle_id: parsed.data.vehicle_id,
+      is_default: parsed.data.is_default,
+    });
+    await writeAuditLog(supabase, {
+      actorUserId: session.userId,
+      action: "UPDATE",
+      tableName: "customer_vehicles",
+      recordId: parsed.data.relation_id,
+      oldData: result.before as unknown as Json,
+      newData: result.after as unknown as Json,
+    });
+    revalidatePath(`/customers/${parsed.data.customer_id}`);
+    revalidatePath("/vehicles");
+    return { data: result.after };
+  } catch (error) {
+    return {
+      error: error instanceof AppError ? error.message : "Không thể cập nhật vehicle ưu tiên",
     };
   }
 }

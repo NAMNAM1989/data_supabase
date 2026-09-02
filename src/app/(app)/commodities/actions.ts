@@ -6,7 +6,11 @@ import { canPerform } from "@/lib/auth/permissions";
 import { getSession } from "@/lib/auth/session";
 import { AppError } from "@/lib/errors";
 import { writeAuditLog } from "@/lib/master-data/audit";
-import { createCommodity, updateCommodity } from "@/lib/master-data/commodities";
+import {
+  createCommodity,
+  getCommodityById,
+  updateCommodity,
+} from "@/lib/master-data/commodities";
 import { createClient } from "@/lib/supabase/server";
 import { commoditySchema, commodityUpdateSchema } from "@/lib/validation/commodity";
 import type { Json } from "@/types/database";
@@ -54,12 +58,14 @@ export async function updateCommodityAction(id: string, input: unknown) {
 
   const supabase = await createClient();
   try {
+    const oldData = await getCommodityById(supabase, id);
     const commodity = await updateCommodity(supabase, id, parsed.data);
     await writeAuditLog(supabase, {
       actorUserId: session.userId,
       action: "UPDATE",
       tableName: "commodities",
       recordId: id,
+      oldData: oldData as unknown as Json,
       newData: commodity as unknown as Json,
     });
     revalidatePath("/commodities");

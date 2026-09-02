@@ -9,6 +9,7 @@ import { createCustomerAction } from "@/app/(app)/customers/actions";
 import { useProfile } from "@/components/providers/profile-provider";
 import { EditRowLink, WriteAccessHint } from "@/components/shared/edit-row-actions";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { TableLoadingRows } from "@/components/shared/table-states";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -26,7 +27,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -211,15 +211,7 @@ export function CustomersPageClient() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  {Array.from({ length: canWrite(role) ? 8 : 7 }).map((__, j) => (
-                    <TableCell key={j}>
-                      <Skeleton className="h-4 w-full" />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+              <TableLoadingRows colSpan={canWrite(role) ? 8 : 7} />
             ) : data?.length ? (
               data.map((customer) => (
                 <TableRow key={customer.id} className="cursor-pointer">
@@ -244,7 +236,7 @@ export function CustomersPageClient() {
                   </TableCell>
                   {canWrite(role) ? (
                     <TableCell>
-                      <EditRowLink href={`/customers/${customer.id}`} label={customer.name} />
+                      <EditRowLink href={`/customers/${customer.id}`} label={`customer ${customer.code}`} />
                     </TableCell>
                   ) : null}
                 </TableRow>

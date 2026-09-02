@@ -12,6 +12,7 @@ import {
   linkPartyAction,
   linkVehiclePreferenceAction,
   restoreCustomerAction,
+  setDefaultCommodityAction,
   setDefaultDriverPreferenceAction,
   setDefaultPartyAction,
   setDefaultVehiclePreferenceAction,
@@ -19,10 +20,15 @@ import {
   unlinkDriverPreferenceAction,
   unlinkPartyAction,
   unlinkVehiclePreferenceAction,
+  updateCommodityRelationAction,
   updateCustomerAction,
+  updateDriverPreferenceAction,
+  updatePartyRelationAction,
+  updateVehiclePreferenceAction,
 } from "@/app/(app)/customers/actions";
 import { useProfile } from "@/components/providers/profile-provider";
-import { DetailEditHint } from "@/components/shared/edit-row-actions";
+import { DetailEditHint, EditRowButton } from "@/components/shared/edit-row-actions";
+import { IconActionButton } from "@/components/shared/icon-action-button";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -356,7 +362,7 @@ function PartyRelationTab({
     id: string;
     is_default: boolean;
     party: { id: string; name: string; address: string | null };
-    destination: { iata_code: string } | null;
+    destination: { id: string; iata_code: string } | null;
   }>;
   loading: boolean;
   canEdit: boolean;
@@ -369,6 +375,18 @@ function PartyRelationTab({
   const [partyId, setPartyId] = useState("");
   const [destinationId, setDestinationId] = useState("");
   const [saving, setSaving] = useState(false);
+  const [editRow, setEditRow] = useState<(typeof rows)[number] | null>(null);
+  const [editPartyId, setEditPartyId] = useState("");
+  const [editDestinationId, setEditDestinationId] = useState("");
+  const [editIsDefault, setEditIsDefault] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+
+  function openEdit(row: (typeof rows)[number]) {
+    setEditRow(row);
+    setEditPartyId(row.party.id);
+    setEditDestinationId(row.destination?.id ?? "");
+    setEditIsDefault(row.is_default);
+  }
 
   async function handleLink(formData: FormData) {
     setSaving(true);
@@ -397,7 +415,31 @@ function PartyRelationTab({
     onChanged();
   }
 
-  async function handleUnlink(relationId: string) {
+  async function handleUpdate() {
+    if (!editRow || !editPartyId) {
+      toast.error("Chọn party");
+      return;
+    }
+    setEditSaving(true);
+    const result = await updatePartyRelationAction({
+      relation_id: editRow.id,
+      customer_id: customerId,
+      party_id: editPartyId,
+      destination_id: role === "CONSIGNEE" && editDestinationId ? editDestinationId : null,
+      is_default: editIsDefault,
+    });
+    setEditSaving(false);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success("Đã cập nhật liên kết");
+    setEditRow(null);
+    onChanged();
+  }
+
+  async function handleUnlink(relationId: string, name: string) {
+    if (!confirm(`Gỡ liên kết party "${name}"?`)) return;
     const result = await unlinkPartyAction(relationId, customerId);
     if (result.error) toast.error(result.error);
     else {
@@ -497,7 +539,7 @@ function PartyRelationTab({
               <TableHead>Party</TableHead>
               {role === "CONSIGNEE" ? <TableHead>Destination</TableHead> : null}
               <TableHead>Default</TableHead>
-              {canEdit ? <TableHead className="w-28" /> : null}
+              {canEdit ? <TableHead className="w-40">Thao tác</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -520,13 +562,22 @@ function PartyRelationTab({
                   <TableCell>{row.is_default ? "Yes" : "—"}</TableCell>
                   {canEdit ? (
                     <TableCell>
-                      <div className="flex gap-1">
-                        <Button size="icon-xs" variant="ghost" onClick={() => handleSetDefault(row.id)}>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <EditRowButton label={row.party.name} onClick={() => openEdit(row)} />
+                        <IconActionButton
+                          label="Đặt mặc định"
+                          tooltip="Đặt mặc định"
+                          onClick={() => handleSetDefault(row.id)}
+                        >
                           <Star />
-                        </Button>
-                        <Button size="icon-xs" variant="ghost" onClick={() => handleUnlink(row.id)}>
+                        </IconActionButton>
+                        <IconActionButton
+                          label={`Gỡ liên kết ${row.party.name}`}
+                          tooltip={`Gỡ liên kết ${row.party.name}`}
+                          onClick={() => handleUnlink(row.id, row.party.name)}
+                        >
                           <Trash2 />
-                        </Button>
+                        </IconActionButton>
                       </div>
                     </TableCell>
                   ) : null}
@@ -542,6 +593,69 @@ function PartyRelationTab({
           </TableBody>
         </Table>
       </CardContent>
+
+      <Dialog open={Boolean(editRow)} onOpenChange={(next) => !next && setEditRow(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Sửa liên kết {editRow?.party.name}</DialogTitle>
+          </DialogHeader>
+          {editRow ? (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2">
+                <Label>Party</Label>
+                <Select value={editPartyId} onValueChange={(v) => setEditPartyId(v ?? "")}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Chọn party" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(parties.data ?? []).map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {role === "CONSIGNEE" ? (
+                <div className="flex flex-col gap-2">
+                  <Label>Destination</Label>
+                  <Select
+                    value={editDestinationId}
+                    onValueChange={(v) => setEditDestinationId(v ?? "")}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Chọn IATA (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(destinations.data ?? []).map((d) => (
+                        <SelectItem key={d.id} value={d.id}>
+                          {d.iata_code}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={editIsDefault}
+                  onChange={(e) => setEditIsDefault(e.target.checked)}
+                />
+                Mặc định
+              </label>
+              <div className="flex gap-2">
+                <Button type="button" onClick={handleUpdate} disabled={editSaving}>
+                  {editSaving ? "Đang lưu..." : "Lưu thay đổi"}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setEditRow(null)} disabled={editSaving}>
+                  Hủy
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
@@ -556,6 +670,7 @@ function CommodityRelationTab({
   customerId: string;
   rows: Array<{
     id: string;
+    is_default: boolean;
     custom_description: string | null;
     commodity: { id: string; name: string; code: string | null };
   }>;
@@ -568,6 +683,18 @@ function CommodityRelationTab({
   const [mode, setMode] = useState<"existing" | "new">("existing");
   const [commodityId, setCommodityId] = useState("");
   const [saving, setSaving] = useState(false);
+  const [editRow, setEditRow] = useState<(typeof rows)[number] | null>(null);
+  const [editCommodityId, setEditCommodityId] = useState("");
+  const [editCustomDescription, setEditCustomDescription] = useState("");
+  const [editIsDefault, setEditIsDefault] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+
+  function openEdit(row: (typeof rows)[number]) {
+    setEditRow(row);
+    setEditCommodityId(row.commodity.id);
+    setEditCustomDescription(row.custom_description ?? "");
+    setEditIsDefault(row.is_default);
+  }
 
   async function handleLink(formData: FormData) {
     setSaving(true);
@@ -592,11 +719,44 @@ function CommodityRelationTab({
     }
   }
 
-  async function handleUnlink(relationId: string) {
+  async function handleUpdate() {
+    if (!editRow || !editCommodityId) {
+      toast.error("Chọn commodity");
+      return;
+    }
+    setEditSaving(true);
+    const result = await updateCommodityRelationAction({
+      relation_id: editRow.id,
+      customer_id: customerId,
+      commodity_id: editCommodityId,
+      custom_description: editCustomDescription || null,
+      is_default: editIsDefault,
+    });
+    setEditSaving(false);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success("Đã cập nhật commodity");
+    setEditRow(null);
+    onChanged();
+  }
+
+  async function handleUnlink(relationId: string, name: string) {
+    if (!confirm(`Gỡ liên kết commodity "${name}"?`)) return;
     const result = await unlinkCommodityAction(relationId, customerId);
     if (result.error) toast.error(result.error);
     else {
       toast.success("Đã gỡ liên kết");
+      onChanged();
+    }
+  }
+
+  async function handleSetDefault(relationId: string) {
+    const result = await setDefaultCommodityAction(relationId, customerId);
+    if (result.error) toast.error(result.error);
+    else {
+      toast.success("Đã đặt mặc định");
       onChanged();
     }
   }
@@ -668,13 +828,14 @@ function CommodityRelationTab({
             <TableRow>
               <TableHead>Commodity</TableHead>
               <TableHead>Custom Description</TableHead>
-              {canEdit ? <TableHead className="w-16" /> : null}
+              <TableHead>Default</TableHead>
+              {canEdit ? <TableHead className="w-40">Thao tác</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={3}>
+                <TableCell colSpan={4}>
                   <Skeleton className="h-4 w-full" />
                 </TableCell>
               </TableRow>
@@ -686,18 +847,33 @@ function CommodityRelationTab({
                     <div className="text-xs text-muted-foreground">{row.commodity.code}</div>
                   </TableCell>
                   <TableCell>{row.custom_description ?? "—"}</TableCell>
+                  <TableCell>{row.is_default ? "Yes" : "—"}</TableCell>
                   {canEdit ? (
                     <TableCell>
-                      <Button size="icon-xs" variant="ghost" onClick={() => handleUnlink(row.id)}>
-                        <Trash2 />
-                      </Button>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <EditRowButton label={row.commodity.name} onClick={() => openEdit(row)} />
+                        <IconActionButton
+                          label="Đặt mặc định"
+                          tooltip="Đặt mặc định"
+                          onClick={() => handleSetDefault(row.id)}
+                        >
+                          <Star />
+                        </IconActionButton>
+                        <IconActionButton
+                          label={`Gỡ liên kết ${row.commodity.name}`}
+                          tooltip={`Gỡ liên kết ${row.commodity.name}`}
+                          onClick={() => handleUnlink(row.id, row.commodity.name)}
+                        >
+                          <Trash2 />
+                        </IconActionButton>
+                      </div>
                     </TableCell>
                   ) : null}
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={3} className="text-center text-muted-foreground">
+                <TableCell colSpan={4} className="text-center text-muted-foreground">
                   Chưa có commodity
                 </TableCell>
               </TableRow>
@@ -705,6 +881,58 @@ function CommodityRelationTab({
           </TableBody>
         </Table>
       </CardContent>
+
+      <Dialog open={Boolean(editRow)} onOpenChange={(next) => !next && setEditRow(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Sửa commodity {editRow?.commodity.name}</DialogTitle>
+          </DialogHeader>
+          {editRow ? (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2">
+                <Label>Commodity</Label>
+                <Select value={editCommodityId} onValueChange={(v) => setEditCommodityId(v ?? "")}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Chọn commodity" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(allCommodities.data ?? []).map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.code ? `${c.code} — ` : ""}
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="edit_custom_description">Custom Description</Label>
+                <Input
+                  id="edit_custom_description"
+                  value={editCustomDescription}
+                  onChange={(e) => setEditCustomDescription(e.target.value)}
+                />
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={editIsDefault}
+                  onChange={(e) => setEditIsDefault(e.target.checked)}
+                />
+                Mặc định
+              </label>
+              <div className="flex gap-2">
+                <Button type="button" onClick={handleUpdate} disabled={editSaving}>
+                  {editSaving ? "Đang lưu..." : "Lưu thay đổi"}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setEditRow(null)} disabled={editSaving}>
+                  Hủy
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
@@ -730,6 +958,16 @@ function DriverPreferenceTab({
   const [open, setOpen] = useState(false);
   const [driverId, setDriverId] = useState("");
   const [saving, setSaving] = useState(false);
+  const [editRow, setEditRow] = useState<(typeof rows)[number] | null>(null);
+  const [editDriverId, setEditDriverId] = useState("");
+  const [editIsDefault, setEditIsDefault] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+
+  function openEdit(row: (typeof rows)[number]) {
+    setEditRow(row);
+    setEditDriverId(row.driver.id);
+    setEditIsDefault(row.is_default);
+  }
 
   async function handleLink() {
     if (!driverId) {
@@ -747,7 +985,30 @@ function DriverPreferenceTab({
     }
   }
 
-  async function handleUnlink(relationId: string) {
+  async function handleUpdate() {
+    if (!editRow || !editDriverId) {
+      toast.error("Chọn driver");
+      return;
+    }
+    setEditSaving(true);
+    const result = await updateDriverPreferenceAction({
+      relation_id: editRow.id,
+      customer_id: customerId,
+      driver_id: editDriverId,
+      is_default: editIsDefault,
+    });
+    setEditSaving(false);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success("Đã cập nhật driver ưu tiên");
+    setEditRow(null);
+    onChanged();
+  }
+
+  async function handleUnlink(relationId: string, name: string) {
+    if (!confirm(`Gỡ liên kết driver "${name}"?`)) return;
     const result = await unlinkDriverPreferenceAction(relationId, customerId);
     if (result.error) toast.error(result.error);
     else {
@@ -807,7 +1068,7 @@ function DriverPreferenceTab({
               <TableHead>Driver</TableHead>
               <TableHead>Phone</TableHead>
               <TableHead>Default</TableHead>
-              {canEdit ? <TableHead className="w-28" /> : null}
+              {canEdit ? <TableHead className="w-40">Thao tác</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -825,13 +1086,22 @@ function DriverPreferenceTab({
                   <TableCell>{row.is_default ? "Yes" : "—"}</TableCell>
                   {canEdit ? (
                     <TableCell>
-                      <div className="flex gap-1">
-                        <Button size="icon-xs" variant="ghost" onClick={() => handleSetDefault(row.id)}>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <EditRowButton label={row.driver.full_name} onClick={() => openEdit(row)} />
+                        <IconActionButton
+                          label="Đặt mặc định"
+                          tooltip="Đặt mặc định"
+                          onClick={() => handleSetDefault(row.id)}
+                        >
                           <Star />
-                        </Button>
-                        <Button size="icon-xs" variant="ghost" onClick={() => handleUnlink(row.id)}>
+                        </IconActionButton>
+                        <IconActionButton
+                          label={`Gỡ liên kết ${row.driver.full_name}`}
+                          tooltip={`Gỡ liên kết ${row.driver.full_name}`}
+                          onClick={() => handleUnlink(row.id, row.driver.full_name)}
+                        >
                           <Trash2 />
-                        </Button>
+                        </IconActionButton>
                       </div>
                     </TableCell>
                   ) : null}
@@ -847,6 +1117,49 @@ function DriverPreferenceTab({
           </TableBody>
         </Table>
       </CardContent>
+
+      <Dialog open={Boolean(editRow)} onOpenChange={(next) => !next && setEditRow(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Sửa driver ưu tiên {editRow?.driver.full_name}</DialogTitle>
+          </DialogHeader>
+          {editRow ? (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2">
+                <Label>Driver</Label>
+                <Select value={editDriverId} onValueChange={(v) => setEditDriverId(v ?? "")}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Chọn driver" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(allDrivers.data ?? []).map((d) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={editIsDefault}
+                  onChange={(e) => setEditIsDefault(e.target.checked)}
+                />
+                Mặc định
+              </label>
+              <div className="flex gap-2">
+                <Button type="button" onClick={handleUpdate} disabled={editSaving}>
+                  {editSaving ? "Đang lưu..." : "Lưu thay đổi"}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setEditRow(null)} disabled={editSaving}>
+                  Hủy
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
@@ -872,6 +1185,16 @@ function VehiclePreferenceTab({
   const [open, setOpen] = useState(false);
   const [vehicleId, setVehicleId] = useState("");
   const [saving, setSaving] = useState(false);
+  const [editRow, setEditRow] = useState<(typeof rows)[number] | null>(null);
+  const [editVehicleId, setEditVehicleId] = useState("");
+  const [editIsDefault, setEditIsDefault] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+
+  function openEdit(row: (typeof rows)[number]) {
+    setEditRow(row);
+    setEditVehicleId(row.vehicle.id);
+    setEditIsDefault(row.is_default);
+  }
 
   async function handleLink() {
     if (!vehicleId) {
@@ -889,7 +1212,30 @@ function VehiclePreferenceTab({
     }
   }
 
-  async function handleUnlink(relationId: string) {
+  async function handleUpdate() {
+    if (!editRow || !editVehicleId) {
+      toast.error("Chọn vehicle");
+      return;
+    }
+    setEditSaving(true);
+    const result = await updateVehiclePreferenceAction({
+      relation_id: editRow.id,
+      customer_id: customerId,
+      vehicle_id: editVehicleId,
+      is_default: editIsDefault,
+    });
+    setEditSaving(false);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success("Đã cập nhật vehicle ưu tiên");
+    setEditRow(null);
+    onChanged();
+  }
+
+  async function handleUnlink(relationId: string, name: string) {
+    if (!confirm(`Gỡ liên kết vehicle "${name}"?`)) return;
     const result = await unlinkVehiclePreferenceAction(relationId, customerId);
     if (result.error) toast.error(result.error);
     else {
@@ -948,35 +1294,47 @@ function VehiclePreferenceTab({
             <TableRow>
               <TableHead>Plate</TableHead>
               <TableHead>Default</TableHead>
-              {canEdit ? <TableHead className="w-28" /> : null}
+              {canEdit ? <TableHead className="w-40">Thao tác</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow><TableCell colSpan={3}><Skeleton className="h-4 w-full" /></TableCell></TableRow>
             ) : rows.length ? (
-              rows.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell>
-                    <Link href={`/vehicles/${row.vehicle.id}`} className="hover:underline">
-                      {row.vehicle.plate_display ?? row.vehicle.plate_number}
-                    </Link>
-                  </TableCell>
-                  <TableCell>{row.is_default ? "Yes" : "—"}</TableCell>
-                  {canEdit ? (
+              rows.map((row) => {
+                const plate = row.vehicle.plate_display ?? row.vehicle.plate_number;
+                return (
+                  <TableRow key={row.id}>
                     <TableCell>
-                      <div className="flex gap-1">
-                        <Button size="icon-xs" variant="ghost" onClick={() => handleSetDefault(row.id)}>
-                          <Star />
-                        </Button>
-                        <Button size="icon-xs" variant="ghost" onClick={() => handleUnlink(row.id)}>
-                          <Trash2 />
-                        </Button>
-                      </div>
+                      <Link href={`/vehicles/${row.vehicle.id}`} className="hover:underline">
+                        {plate}
+                      </Link>
                     </TableCell>
-                  ) : null}
-                </TableRow>
-              ))
+                    <TableCell>{row.is_default ? "Yes" : "—"}</TableCell>
+                    {canEdit ? (
+                      <TableCell>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <EditRowButton label={plate} onClick={() => openEdit(row)} />
+                          <IconActionButton
+                            label="Đặt mặc định"
+                            tooltip="Đặt mặc định"
+                            onClick={() => handleSetDefault(row.id)}
+                          >
+                            <Star />
+                          </IconActionButton>
+                          <IconActionButton
+                            label={`Gỡ liên kết ${plate}`}
+                            tooltip={`Gỡ liên kết ${plate}`}
+                            onClick={() => handleUnlink(row.id, plate)}
+                          >
+                            <Trash2 />
+                          </IconActionButton>
+                        </div>
+                      </TableCell>
+                    ) : null}
+                  </TableRow>
+                );
+              })
             ) : (
               <TableRow>
                 <TableCell colSpan={3} className="text-center text-muted-foreground">
@@ -987,6 +1345,52 @@ function VehiclePreferenceTab({
           </TableBody>
         </Table>
       </CardContent>
+
+      <Dialog open={Boolean(editRow)} onOpenChange={(next) => !next && setEditRow(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Sửa vehicle ưu tiên{" "}
+              {editRow ? editRow.vehicle.plate_display ?? editRow.vehicle.plate_number : ""}
+            </DialogTitle>
+          </DialogHeader>
+          {editRow ? (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2">
+                <Label>Vehicle</Label>
+                <Select value={editVehicleId} onValueChange={(v) => setEditVehicleId(v ?? "")}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Chọn vehicle" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(allVehicles.data ?? []).map((v) => (
+                      <SelectItem key={v.id} value={v.id}>
+                        {v.plate_display ?? v.plate_number}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={editIsDefault}
+                  onChange={(e) => setEditIsDefault(e.target.checked)}
+                />
+                Mặc định
+              </label>
+              <div className="flex gap-2">
+                <Button type="button" onClick={handleUpdate} disabled={editSaving}>
+                  {editSaving ? "Đang lưu..." : "Lưu thay đổi"}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setEditRow(null)} disabled={editSaving}>
+                  Hủy
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

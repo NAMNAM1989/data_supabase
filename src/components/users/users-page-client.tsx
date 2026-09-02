@@ -8,6 +8,7 @@ import { createUserAction, updateUserAction } from "@/app/(app)/users/actions";
 import { useProfile } from "@/components/providers/profile-provider";
 import { EditRowButton } from "@/components/shared/edit-row-actions";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { TableEmptyRow, TableErrorRow, TableLoadingRows } from "@/components/shared/table-states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,7 +27,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -48,13 +48,14 @@ type EditUser = {
 };
 
 export function UsersPageClient() {
-  const { role } = useProfile();
+  const { role, id: currentUserId } = useProfile();
   const canManage = canPerform(role, "manage_users");
-  const { data, isLoading, refetch } = useUsers();
+  const { data, isLoading, isError, refetch } = useUsers();
   const [open, setOpen] = useState(false);
   const [editUser, setEditUser] = useState<EditUser | null>(null);
   const { saving, runLocked } = useSubmitLock();
   const [newRole, setNewRole] = useState<string>("VIEWER");
+  const [rowLoadingId, setRowLoadingId] = useState<string | null>(null);
 
   async function handleCreate(formData: FormData) {
     await runLocked(async () => {
@@ -91,23 +92,45 @@ export function UsersPageClient() {
   }
 
   async function handleRoleChange(userId: string, nextRole: string) {
-    const result = await updateUserAction(userId, { role: nextRole });
-    if (result.error) toast.error(result.error);
-    else {
-      toast.success("Đã cập nhật role");
-      refetch();
+    if (currentUserId && userId === currentUserId) {
+      toast.error("Không thể đổi role của chính bạn");
+      return;
     }
+    setRowLoadingId(userId);
+    const result = await updateUserAction(userId, { role: nextRole });
+    setRowLoadingId(null);
+    if (result.error) {
+      toast.error(result.error);
+      refetch();
+      return;
+    }
+    toast.success("Đã cập nhật role");
+    refetch();
   }
 
   async function handleStatusChange(userId: string, status: string) {
+    if (currentUserId && userId === currentUserId) {
+      toast.error("Không thể đổi status của chính bạn");
+      return;
+    }
+    if (
+      (status === "INACTIVE" || status === "ARCHIVED") &&
+      !confirm(`Đặt status thành ${status}?`)
+    ) {
+      return;
+    }
+    setRowLoadingId(userId);
     const result = await updateUserAction(userId, {
       status: status as "ACTIVE" | "INACTIVE" | "ARCHIVED",
     });
-    if (result.error) toast.error(result.error);
-    else {
-      toast.success("Đã cập nhật status");
+    setRowLoadingId(null);
+    if (result.error) {
+      toast.error(result.error);
       refetch();
+      return;
     }
+    toast.success("Đã cập nhật status");
+    refetch();
   }
 
   if (!canManage) {
@@ -179,77 +202,80 @@ export function UsersPageClient() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={5}>
-                  <Skeleton className="h-4 w-full" />
-                </TableCell>
-              </TableRow>
+              <TableLoadingRows colSpan={5} />
+            ) : isError ? (
+              <TableErrorRow colSpan={5} onRetry={() => refetch()} />
             ) : data?.length ? (
-              data.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>{user.profile?.display_name ?? "—"}</TableCell>
-                  <TableCell>
-                    <Select
-                      value={user.profile?.role ?? "VIEWER"}
-                      onValueChange={(v) => handleRoleChange(user.id, v ?? "VIEWER")}
-                    >
-                      <SelectTrigger className="w-36">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {APP_ROLES.map((item) => (
-                          <SelectItem key={item} value={item}>
-                            {item}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    {user.profile ? (
-                      <div className="flex items-center gap-2">
-                        <StatusBadge status={user.profile.status} />
-                        <Select
-                          value={user.profile.status}
-                          onValueChange={(v) => handleStatusChange(user.id, v ?? "ACTIVE")}
-                        >
-                          <SelectTrigger className="w-32">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="ACTIVE">ACTIVE</SelectItem>
-                            <SelectItem value="INACTIVE">INACTIVE</SelectItem>
-                            <SelectItem value="ARCHIVED">ARCHIVED</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    ) : (
-                      <Badge variant="secondary">No profile</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {user.profile ? (
-                      <EditRowButton
-                        label={user.email}
-                        onClick={() =>
-                          setEditUser({
-                            id: user.id,
-                            email: user.email,
-                            display_name: user.profile?.display_name ?? "",
-                          })
-                        }
-                      />
-                    ) : null}
-                  </TableCell>
-                </TableRow>
-              ))
+              data.map((user) => {
+                const isSelf = Boolean(currentUserId && user.id === currentUserId);
+                const rowBusy = rowLoadingId === user.id;
+                return (
+                  <TableRow key={user.id}>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>{user.profile?.display_name ?? "—"}</TableCell>
+                    <TableCell>
+                      <Select
+                        value={user.profile?.role ?? "VIEWER"}
+                        onValueChange={(v) => handleRoleChange(user.id, v ?? "VIEWER")}
+                        disabled={isSelf || rowBusy || !user.profile}
+                      >
+                        <SelectTrigger className="w-36">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {APP_ROLES.map((item) => (
+                            <SelectItem key={item} value={item}>
+                              {item}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      {user.profile ? (
+                        <div className="flex items-center gap-2">
+                          <StatusBadge status={user.profile.status} />
+                          <Select
+                            value={user.profile.status}
+                            onValueChange={(v) => handleStatusChange(user.id, v ?? "ACTIVE")}
+                            disabled={isSelf || rowBusy}
+                          >
+                            <SelectTrigger className="w-32">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="ACTIVE">ACTIVE</SelectItem>
+                              <SelectItem value="INACTIVE">INACTIVE</SelectItem>
+                              <SelectItem value="ARCHIVED">ARCHIVED</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ) : (
+                        <Badge variant="secondary">No profile</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {user.profile ? (
+                        <EditRowButton
+                          label={`user ${user.email}`}
+                          onClick={() =>
+                            setEditUser({
+                              id: user.id,
+                              email: user.email,
+                              display_name: user.profile?.display_name ?? "",
+                            })
+                          }
+                        />
+                      ) : null}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             ) : (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">
-                  Chưa có user — tạo admin đầu tiên qua Supabase Dashboard
-                </TableCell>
-              </TableRow>
+              <TableEmptyRow
+                colSpan={5}
+                message="Chưa có user — tạo admin đầu tiên qua Supabase Dashboard"
+              />
             )}
           </TableBody>
         </Table>
@@ -267,6 +293,13 @@ export function UsersPageClient() {
               className="flex flex-col gap-3"
             >
               <div className="flex flex-col gap-2">
+                <Label htmlFor="edit_email">Email</Label>
+                <Input id="edit_email" value={editUser.email} readOnly />
+                <p className="text-xs text-muted-foreground">
+                  Email chỉ đổi qua Supabase Auth Admin — không hỗ trợ tại đây
+                </p>
+              </div>
+              <div className="flex flex-col gap-2">
                 <Label htmlFor="edit_display_name">Display Name</Label>
                 <Input
                   id="edit_display_name"
@@ -275,9 +308,19 @@ export function UsersPageClient() {
                   placeholder="Tên hiển thị"
                 />
               </div>
-              <Button type="submit" disabled={saving}>
-                {saving ? "Đang lưu..." : "Lưu thay đổi"}
-              </Button>
+              <div className="flex gap-2">
+                <Button type="submit" disabled={saving}>
+                  {saving ? "Đang lưu..." : "Lưu thay đổi"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={saving}
+                  onClick={() => setEditUser(null)}
+                >
+                  Hủy
+                </Button>
+              </div>
             </form>
           ) : null}
         </DialogContent>

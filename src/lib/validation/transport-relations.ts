@@ -23,3 +23,28 @@ export const linkCustomerVehicleSchema = z.object({
 export type AssignDriverVehicleInput = z.infer<typeof assignDriverVehicleSchema>;
 export type LinkCustomerDriverInput = z.infer<typeof linkCustomerDriverSchema>;
 export type LinkCustomerVehicleInput = z.infer<typeof linkCustomerVehicleSchema>;
+
+export const updateDriverVehicleSchema = z.object({
+  relation_id: z.string().uuid(),
+  driver_id: z.string().uuid(),
+  vehicle_id: z.string().uuid(),
+  is_preferred: z.boolean().default(false),
+});
+
+export const updateCustomerDriverSchema = z.object({
+  relation_id: z.string().uuid(),
+  customer_id: z.string().uuid(),
+  driver_id: z.string().uuid(),
+  is_default: z.boolean().default(false),
+});
+
+export const updateCustomerVehicleSchema = z.object({
+  relation_id: z.string().uuid(),
+  customer_id: z.string().uuid(),
+  vehicle_id: z.string().uuid(),
+  is_default: z.boolean().default(false),
+});
+
+export type UpdateDriverVehicleInput = z.infer<typeof updateDriverVehicleSchema>;
+export type UpdateCustomerDriverInput = z.infer<typeof updateCustomerDriverSchema>;
+export type UpdateCustomerVehicleInput = z.infer<typeof updateCustomerVehicleSchema>;

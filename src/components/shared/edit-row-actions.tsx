@@ -1,7 +1,15 @@
+"use client";
+
 import Link from "next/link";
 import { Pencil } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type EditRowLinkProps = {
   href: string;
@@ -11,15 +19,24 @@ type EditRowLinkProps = {
 /** Nút Sửa — mở trang detail để chỉnh sửa. */
 export function EditRowLink({ href, label }: EditRowLinkProps) {
   return (
-    <Button
-      size="xs"
-      variant="outline"
-      render={<Link href={href} />}
-      aria-label={`Sửa ${label}`}
-    >
-      <Pencil />
-      Sửa
-    </Button>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              size="xs"
+              variant="outline"
+              render={<Link href={href} />}
+              aria-label={`Sửa ${label}`}
+            />
+          }
+        >
+          <Pencil />
+          Sửa
+        </TooltipTrigger>
+        <TooltipContent>Sửa</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -31,10 +48,24 @@ type EditRowButtonProps = {
 /** Nút Sửa — mở dialog chỉnh sửa inline trên list. */
 export function EditRowButton({ label, onClick }: EditRowButtonProps) {
   return (
-    <Button size="xs" variant="outline" onClick={onClick} aria-label={`Sửa ${label}`}>
-      <Pencil />
-      Sửa
-    </Button>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={onClick}
+              aria-label={`Sửa ${label}`}
+            />
+          }
+        >
+          <Pencil />
+          Sửa
+        </TooltipTrigger>
+        <TooltipContent>Sửa</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 

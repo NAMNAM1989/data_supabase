@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { createPartyAction } from "@/app/(app)/parties/actions";
 import { useProfile } from "@/components/providers/profile-provider";
 import { EditRowLink, WriteAccessHint } from "@/components/shared/edit-row-actions";
+import { TableLoadingRows } from "@/components/shared/table-states";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,7 +20,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -134,11 +134,7 @@ export function PartiesPageClient() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={canWrite(role) ? 6 : 5}>
-                  <Skeleton className="h-4 w-full" />
-                </TableCell>
-              </TableRow>
+              <TableLoadingRows colSpan={canWrite(role) ? 6 : 5} />
             ) : data?.length ? (
               data.map((party) => (
                 <TableRow key={party.id}>
@@ -157,7 +153,7 @@ export function PartiesPageClient() {
                   </TableCell>
                   {canWrite(role) ? (
                     <TableCell>
-                      <EditRowLink href={`/parties/${party.id}`} label={party.name} />
+                      <EditRowLink href={`/parties/${party.id}`} label={`party ${party.code || party.name}`} />
                     </TableCell>
                   ) : null}
                 </TableRow>

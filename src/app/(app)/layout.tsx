@@ -15,7 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const role: AppRole = session.profile?.role ?? "VIEWER";
 
   return (
-    <ProfileProvider role={role}>
+    <ProfileProvider role={role} id={session.userId}>
       <AppShell profile={session.profile} email={session.email}>
         {children}
       </AppShell>

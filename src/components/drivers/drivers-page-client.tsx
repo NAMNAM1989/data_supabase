@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { createDriverAction } from "@/app/(app)/drivers/actions";
 import { useProfile } from "@/components/providers/profile-provider";
 import { EditRowLink, WriteAccessHint } from "@/components/shared/edit-row-actions";
+import { TableLoadingRows } from "@/components/shared/table-states";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,7 +20,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -130,11 +130,7 @@ export function DriversPageClient() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={canWrite(role) ? 7 : 6}>
-                  <Skeleton className="h-4 w-full" />
-                </TableCell>
-              </TableRow>
+              <TableLoadingRows colSpan={canWrite(role) ? 7 : 6} />
             ) : data?.length ? (
               data.map((driver) => (
                 <TableRow key={driver.id}>
@@ -152,7 +148,7 @@ export function DriversPageClient() {
                   </TableCell>
                   {canWrite(role) ? (
                     <TableCell>
-                      <EditRowLink href={`/drivers/${driver.id}`} label={driver.full_name} />
+                      <EditRowLink href={`/drivers/${driver.id}`} label={`driver ${driver.full_name}`} />
                     </TableCell>
                   ) : null}
                 </TableRow>

@@ -39,11 +39,40 @@ const ENTITY_OPTIONS: Array<{ value: ImportEntityType; label: string }> = [
   { value: "commodities", label: "Commodities" },
 ];
 
+const ALLOWED_EXTENSIONS = new Set([".xlsx", ".xls", ".csv"]);
+const ALLOWED_MIME_TYPES = new Set([
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+  "text/csv",
+  "application/csv",
+  "text/plain",
+]);
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
 function statusVariant(status: ImportPreviewRow["status"]) {
   if (status === "valid") return "default" as const;
   if (status === "duplicate") return "secondary" as const;
   if (status === "warning") return "outline" as const;
   return "destructive" as const;
+}
+
+function getFileExtension(name: string) {
+  const idx = name.lastIndexOf(".");
+  return idx >= 0 ? name.slice(idx).toLowerCase() : "";
+}
+
+function isValidImportFile(file: File) {
+  const ext = getFileExtension(file.name);
+  if (!ALLOWED_EXTENSIONS.has(ext)) {
+    return "Chỉ chấp nhận file .xlsx, .xls hoặc .csv";
+  }
+  if (file.type && !ALLOWED_MIME_TYPES.has(file.type)) {
+    return "Loại MIME không hợp lệ cho spreadsheet";
+  }
+  if (file.size > MAX_FILE_SIZE) {
+    return "File vượt quá 10MB";
+  }
+  return null;
 }
 
 export function ImportPageClient() {
@@ -62,8 +91,19 @@ export function ImportPageClient() {
   );
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+    const input = event.target;
+    const file = input.files?.[0];
     if (!file) return;
+
+    const validationError = isValidImportFile(file);
+    if (validationError) {
+      toast.error(validationError);
+      input.value = "";
+      setFileName("");
+      setPreviewRows([]);
+      setSummary({ total: 0, valid: 0, warnings: 0, errors: 0, duplicates: 0 });
+      return;
+    }
 
     setLoading(true);
     setFileName(file.name);
@@ -77,6 +117,9 @@ export function ImportPageClient() {
       const result = await previewImportAction({ entity, rows: mappedRows });
       if (result.error) {
         toast.error(result.error);
+        input.value = "";
+        setFileName("");
+        setPreviewRows([]);
         return;
       }
 
@@ -91,6 +134,9 @@ export function ImportPageClient() {
       toast.success(`Đã load ${result.data?.total ?? 0} dòng`);
     } catch {
       toast.error("Không thể đọc file");
+      input.value = "";
+      setFileName("");
+      setPreviewRows([]);
     } finally {
       setLoading(false);
     }
@@ -101,6 +147,8 @@ export function ImportPageClient() {
   }
 
   async function handleCommit() {
+    if (!confirm(`Import ${selectedCount} dòng đã chọn?`)) return;
+
     setCommitting(true);
     const result = await commitImportAction({
       entity,
@@ -163,7 +211,13 @@ export function ImportPageClient() {
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="import-file">File (.xlsx, .xls, .csv)</Label>
-            <Input id="import-file" type="file" accept=".xlsx,.xls,.csv" onChange={handleFileChange} disabled={loading} />
+            <Input
+              id="import-file"
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={handleFileChange}
+              disabled={loading}
+            />
             {fileName ? <p className="text-xs text-muted-foreground">{fileName}</p> : null}
           </div>
         </CardContent>

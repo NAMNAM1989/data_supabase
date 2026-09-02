@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
 
@@ -19,23 +20,40 @@ function downloadCsv(filename: string, content: string) {
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
+  document.body.appendChild(link);
   link.click();
+  link.remove();
   URL.revokeObjectURL(url);
 }
+
+type ExportResult = {
+  data?: { filename: string; content: string };
+  error?: string;
+};
 
 export function ExportPageClient() {
   const { role } = useProfile();
   const canExport = canPerform(role, "export");
+  const [loadingKey, setLoadingKey] = useState<string | null>(null);
 
-  async function handleExport(action: () => Promise<{ data?: { filename: string; content: string }; error?: string }>) {
-    const result = await action();
-    if (result.error) {
-      toast.error(result.error);
-      return;
-    }
-    if (result.data) {
+  async function handleExport(key: string, action: () => Promise<ExportResult>) {
+    setLoadingKey(key);
+    try {
+      const result = await action();
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      if (!result.data?.content) {
+        toast.error("Không có dữ liệu để xuất");
+        return;
+      }
       downloadCsv(result.data.filename, result.data.content);
       toast.success(`Đã tải ${result.data.filename}`);
+    } catch {
+      toast.error("Xuất CSV thất bại");
+    } finally {
+      setLoadingKey(null);
     }
   }
 
@@ -56,9 +74,12 @@ export function ExportPageClient() {
             <CardTitle className="text-base">Customers</CardTitle>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => handleExport(exportCustomersCsvAction)}>
+            <Button
+              disabled={loadingKey !== null}
+              onClick={() => handleExport("customers", exportCustomersCsvAction)}
+            >
               <Download />
-              Export CSV
+              {loadingKey === "customers" ? "Đang tạo…" : "Export CSV"}
             </Button>
           </CardContent>
         </Card>
@@ -68,9 +89,12 @@ export function ExportPageClient() {
             <CardTitle className="text-base">Drivers</CardTitle>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => handleExport(exportDriversCsvAction)}>
+            <Button
+              disabled={loadingKey !== null}
+              onClick={() => handleExport("drivers", exportDriversCsvAction)}
+            >
               <Download />
-              Export CSV
+              {loadingKey === "drivers" ? "Đang tạo…" : "Export CSV"}
             </Button>
           </CardContent>
         </Card>
@@ -80,9 +104,12 @@ export function ExportPageClient() {
             <CardTitle className="text-base">Vehicles</CardTitle>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => handleExport(exportVehiclesCsvAction)}>
+            <Button
+              disabled={loadingKey !== null}
+              onClick={() => handleExport("vehicles", exportVehiclesCsvAction)}
+            >
               <Download />
-              Export CSV
+              {loadingKey === "vehicles" ? "Đang tạo…" : "Export CSV"}
             </Button>
           </CardContent>
         </Card>

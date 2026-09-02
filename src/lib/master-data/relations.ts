@@ -1,4 +1,4 @@
-import { mapSupabaseError, type Supabase } from "@/lib/errors";
+import { AppError, mapSupabaseError, type Supabase } from "@/lib/errors";
 import type { Tables } from "@/types/database";
 
 export type CustomerParty = Tables<"customer_parties"> & {
@@ -321,4 +321,262 @@ export async function setDefaultCustomerVehicle(supabase: Supabase, relationId: 
 
   if (error) throw mapSupabaseError(error);
   return data;
+}
+
+export async function updateCustomerParty(
+  supabase: Supabase,
+  relationId: string,
+  input: {
+    party_id?: string;
+    destination_id?: string | null;
+    is_default?: boolean;
+  },
+) {
+  const { data: current, error: fetchError } = await supabase
+    .from("customer_parties")
+    .select("*")
+    .eq("id", relationId)
+    .single();
+
+  if (fetchError) throw mapSupabaseError(fetchError);
+
+  const nextPartyId = input.party_id ?? current.party_id;
+  if (nextPartyId !== current.party_id) {
+    const { data: dup } = await supabase
+      .from("customer_parties")
+      .select("id")
+      .eq("customer_id", current.customer_id)
+      .eq("party_id", nextPartyId)
+      .eq("role", current.role)
+      .neq("status", "ARCHIVED")
+      .neq("id", relationId)
+      .maybeSingle();
+
+    if (dup) {
+      throw new AppError("DUPLICATE", "Quan hệ party này đã tồn tại");
+    }
+  }
+
+  if (input.is_default === true) {
+    await supabase
+      .from("customer_parties")
+      .update({ is_default: false })
+      .eq("customer_id", current.customer_id)
+      .eq("role", current.role)
+      .neq("id", relationId);
+  }
+
+  const patch: {
+    party_id?: string;
+    destination_id?: string | null;
+    is_default?: boolean;
+  } = {};
+  if (input.party_id !== undefined) patch.party_id = input.party_id;
+  if (input.destination_id !== undefined) patch.destination_id = input.destination_id;
+  if (input.is_default !== undefined) patch.is_default = input.is_default;
+
+  const { data, error } = await supabase
+    .from("customer_parties")
+    .update(patch)
+    .eq("id", relationId)
+    .select()
+    .single();
+
+  if (error) throw mapSupabaseError(error);
+  return { before: current, after: data };
+}
+
+export async function updateCustomerCommodity(
+  supabase: Supabase,
+  relationId: string,
+  input: {
+    commodity_id?: string;
+    custom_description?: string | null;
+    is_default?: boolean;
+  },
+) {
+  const { data: current, error: fetchError } = await supabase
+    .from("customer_commodities")
+    .select("*")
+    .eq("id", relationId)
+    .single();
+
+  if (fetchError) throw mapSupabaseError(fetchError);
+
+  const nextCommodityId = input.commodity_id ?? current.commodity_id;
+  if (nextCommodityId !== current.commodity_id) {
+    const { data: dup } = await supabase
+      .from("customer_commodities")
+      .select("id")
+      .eq("customer_id", current.customer_id)
+      .eq("commodity_id", nextCommodityId)
+      .neq("status", "ARCHIVED")
+      .neq("id", relationId)
+      .maybeSingle();
+
+    if (dup) {
+      throw new AppError("DUPLICATE", "Quan hệ commodity này đã tồn tại");
+    }
+  }
+
+  if (input.is_default === true) {
+    await supabase
+      .from("customer_commodities")
+      .update({ is_default: false })
+      .eq("customer_id", current.customer_id)
+      .neq("id", relationId);
+  }
+
+  const patch: {
+    commodity_id?: string;
+    custom_description?: string | null;
+    is_default?: boolean;
+  } = {};
+  if (input.commodity_id !== undefined) patch.commodity_id = input.commodity_id;
+  if (input.custom_description !== undefined) {
+    patch.custom_description = input.custom_description;
+  }
+  if (input.is_default !== undefined) patch.is_default = input.is_default;
+
+  const { data, error } = await supabase
+    .from("customer_commodities")
+    .update(patch)
+    .eq("id", relationId)
+    .select()
+    .single();
+
+  if (error) throw mapSupabaseError(error);
+  return { before: current, after: data };
+}
+
+export async function setDefaultCustomerCommodity(supabase: Supabase, relationId: string) {
+  const { data: relation, error: fetchError } = await supabase
+    .from("customer_commodities")
+    .select("customer_id")
+    .eq("id", relationId)
+    .single();
+
+  if (fetchError) throw mapSupabaseError(fetchError);
+
+  await supabase
+    .from("customer_commodities")
+    .update({ is_default: false })
+    .eq("customer_id", relation.customer_id)
+    .eq("status", "ACTIVE");
+
+  const { data, error } = await supabase
+    .from("customer_commodities")
+    .update({ is_default: true })
+    .eq("id", relationId)
+    .select()
+    .single();
+
+  if (error) throw mapSupabaseError(error);
+  return data;
+}
+
+export async function updateCustomerDriver(
+  supabase: Supabase,
+  relationId: string,
+  input: { driver_id?: string; is_default?: boolean },
+) {
+  const { data: current, error: fetchError } = await supabase
+    .from("customer_drivers")
+    .select("*")
+    .eq("id", relationId)
+    .single();
+
+  if (fetchError) throw mapSupabaseError(fetchError);
+
+  const nextDriverId = input.driver_id ?? current.driver_id;
+  if (nextDriverId !== current.driver_id) {
+    const { data: dup } = await supabase
+      .from("customer_drivers")
+      .select("id")
+      .eq("customer_id", current.customer_id)
+      .eq("driver_id", nextDriverId)
+      .neq("status", "ARCHIVED")
+      .neq("id", relationId)
+      .maybeSingle();
+
+    if (dup) {
+      throw new AppError("DUPLICATE", "Driver ưu tiên này đã tồn tại");
+    }
+  }
+
+  if (input.is_default === true) {
+    await supabase
+      .from("customer_drivers")
+      .update({ is_default: false })
+      .eq("customer_id", current.customer_id)
+      .eq("status", "ACTIVE")
+      .neq("id", relationId);
+  }
+
+  const patch: { driver_id?: string; is_default?: boolean } = {};
+  if (input.driver_id !== undefined) patch.driver_id = input.driver_id;
+  if (input.is_default !== undefined) patch.is_default = input.is_default;
+
+  const { data, error } = await supabase
+    .from("customer_drivers")
+    .update(patch)
+    .eq("id", relationId)
+    .select()
+    .single();
+
+  if (error) throw mapSupabaseError(error);
+  return { before: current, after: data };
+}
+
+export async function updateCustomerVehicle(
+  supabase: Supabase,
+  relationId: string,
+  input: { vehicle_id?: string; is_default?: boolean },
+) {
+  const { data: current, error: fetchError } = await supabase
+    .from("customer_vehicles")
+    .select("*")
+    .eq("id", relationId)
+    .single();
+
+  if (fetchError) throw mapSupabaseError(fetchError);
+
+  const nextVehicleId = input.vehicle_id ?? current.vehicle_id;
+  if (nextVehicleId !== current.vehicle_id) {
+    const { data: dup } = await supabase
+      .from("customer_vehicles")
+      .select("id")
+      .eq("customer_id", current.customer_id)
+      .eq("vehicle_id", nextVehicleId)
+      .neq("status", "ARCHIVED")
+      .neq("id", relationId)
+      .maybeSingle();
+
+    if (dup) {
+      throw new AppError("DUPLICATE", "Vehicle ưu tiên này đã tồn tại");
+    }
+  }
+
+  if (input.is_default === true) {
+    await supabase
+      .from("customer_vehicles")
+      .update({ is_default: false })
+      .eq("customer_id", current.customer_id)
+      .eq("status", "ACTIVE")
+      .neq("id", relationId);
+  }
+
+  const patch: { vehicle_id?: string; is_default?: boolean } = {};
+  if (input.vehicle_id !== undefined) patch.vehicle_id = input.vehicle_id;
+  if (input.is_default !== undefined) patch.is_default = input.is_default;
+
+  const { data, error } = await supabase
+    .from("customer_vehicles")
+    .update(patch)
+    .eq("id", relationId)
+    .select()
+    .single();
+
+  if (error) throw mapSupabaseError(error);
+  return { before: current, after: data };
 }

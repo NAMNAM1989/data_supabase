@@ -74,6 +74,7 @@ export function PartiesPageClient() {
         code: formString(formData, "code"),
         address: formString(formData, "address"),
         phone: formString(formData, "phone"),
+        fax: formString(formData, "fax"),
         email: formString(formData, "email"),
         tax_code: formString(formData, "tax_code"),
         status: "ACTIVE",
@@ -93,7 +94,9 @@ export function PartiesPageClient() {
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Parties</h1>
-          <p className="text-sm text-muted-foreground">Shipper / Consignee dùng chung</p>
+          <p className="text-sm text-muted-foreground">
+            Shipper / Consignee / Agent / Notify (ESID)
+          </p>
         </div>
         {canWrite(role) ? (
           <Dialog open={open} onOpenChange={setOpen}>
@@ -124,9 +127,13 @@ export function PartiesPageClient() {
                     <Input id="phone" name="phone" />
                   </div>
                   <div className="flex flex-col gap-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input id="email" name="email" type="email" />
+                    <Label htmlFor="fax">Fax (ESID)</Label>
+                    <Input id="fax" name="fax" />
                   </div>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input id="email" name="email" type="email" />
                 </div>
                 <Button type="submit" disabled={saving}>
                   {saving ? "Đang lưu..." : "Tạo Party"}

@@ -30,6 +30,7 @@ import { applyColumnMapping, autoMapColumns } from "@/lib/import/column-mapping"
 import { parseSpreadsheet } from "@/lib/import/parse-spreadsheet";
 import type { ImportEntityType, ImportPreviewRow, ImportRowAction } from "@/lib/import/types";
 import { canPerform } from "@/lib/auth/permissions";
+import { useSubmitLock } from "@/hooks/use-submit-lock";
 
 const ENTITY_OPTIONS: Array<{ value: ImportEntityType; label: string }> = [
   { value: "customers", label: "Customers" },
@@ -83,12 +84,28 @@ export function ImportPageClient() {
   const [previewRows, setPreviewRows] = useState<ImportPreviewRow[]>([]);
   const [summary, setSummary] = useState({ total: 0, valid: 0, warnings: 0, errors: 0, duplicates: 0 });
   const [loading, setLoading] = useState(false);
-  const [committing, setCommitting] = useState(false);
+  const { saving: committing, runLocked } = useSubmitLock();
+
+  const emptySummary = { total: 0, valid: 0, warnings: 0, errors: 0, duplicates: 0 };
 
   const selectedCount = useMemo(
     () => previewRows.filter((row) => row.action !== "skip" && row.status !== "error").length,
     [previewRows],
   );
+
+  function clearPreview() {
+    setPreviewRows([]);
+    setSummary(emptySummary);
+    setFileName("");
+  }
+
+  function handleEntityChange(next: ImportEntityType) {
+    setEntity(next);
+    if (previewRows.length > 0 || fileName) {
+      clearPreview();
+      toast.message("Đã đổi entity — tải lại file để preview");
+    }
+  }
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const input = event.target;
@@ -149,31 +166,29 @@ export function ImportPageClient() {
   async function handleCommit() {
     if (!confirm(`Import ${selectedCount} dòng đã chọn?`)) return;
 
-    setCommitting(true);
-    const result = await commitImportAction({
-      entity,
-      rows: previewRows.map((row) => ({
-        rowNumber: row.rowNumber,
-        action: row.action,
-        data: row.data,
-        matchId: row.matchId,
-      })),
+    await runLocked(async () => {
+      const result = await commitImportAction({
+        entity,
+        rows: previewRows.map((row) => ({
+          rowNumber: row.rowNumber,
+          action: row.action,
+          data: row.data,
+          matchId: row.matchId,
+        })),
+      });
+
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+
+      const data = result.data;
+      toast.success(`Import xong: ${data?.created} tạo, ${data?.updated} cập nhật, ${data?.skipped} bỏ qua`);
+      if (data?.errors.length) {
+        toast.error(`${data.errors.length} dòng lỗi`);
+      }
+      clearPreview();
     });
-    setCommitting(false);
-
-    if (result.error) {
-      toast.error(result.error);
-      return;
-    }
-
-    const data = result.data;
-    toast.success(`Import xong: ${data?.created} tạo, ${data?.updated} cập nhật, ${data?.skipped} bỏ qua`);
-    if (data?.errors.length) {
-      toast.error(`${data.errors.length} dòng lỗi`);
-    }
-    setPreviewRows([]);
-    setSummary({ total: 0, valid: 0, warnings: 0, errors: 0, duplicates: 0 });
-    setFileName("");
   }
 
   if (!canImport) {
@@ -196,7 +211,7 @@ export function ImportPageClient() {
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div className="flex flex-col gap-2">
             <Label>Entity</Label>
-            <Select value={entity} onValueChange={(v) => setEntity((v ?? "customers") as ImportEntityType)}>
+            <Select value={entity} onValueChange={(v) => handleEntityChange((v ?? "customers") as ImportEntityType)}>
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>

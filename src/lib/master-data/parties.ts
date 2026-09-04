@@ -102,6 +102,7 @@ export async function createParty(supabase: Supabase, input: PartyInput) {
       postal_code: input.postal_code || null,
       country_code: input.country_code || null,
       phone: input.phone || null,
+      fax: input.fax || null,
       email: input.email || null,
       status: input.status,
       notes: input.notes || null,
@@ -126,6 +127,7 @@ export async function updateParty(supabase: Supabase, id: string, input: PartyUp
       postal_code: input.postal_code === "" ? null : input.postal_code,
       country_code: input.country_code === "" ? null : input.country_code,
       phone: input.phone === "" ? null : input.phone,
+      fax: input.fax === "" ? null : input.fax,
       email: input.email === "" ? null : input.email,
       notes: input.notes === "" ? null : input.notes,
     })

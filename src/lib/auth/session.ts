@@ -1,10 +1,6 @@
 import { redirect } from "next/navigation";
 
-import {
-  ensureDevAuthSession,
-  getDevMockSession,
-  isDevAuthBypassEnabled,
-} from "@/lib/auth/dev-bypass";
+import { ensureDevAuthSession, isDevAuthBypassEnabled } from "@/lib/auth/dev-bypass";
 import { createClient } from "@/lib/supabase/server";
 import type { AuthSession } from "@/types/auth";
 
@@ -20,7 +16,7 @@ export async function getSession(): Promise<AuthSession | null> {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return isDevAuthBypassEnabled() ? getDevMockSession() : null;
+    return null;
   }
 
   const { data: profile } = await supabase

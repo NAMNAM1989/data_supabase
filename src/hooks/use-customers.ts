@@ -9,12 +9,15 @@ import {
   getCustomersWithCounts,
 } from "@/lib/master-data/customers";
 import {
+  getCustomerAgents,
   getCustomerCommodities,
   getCustomerConsignees,
   getCustomerDrivers,
+  getCustomerNotifies,
   getCustomerShippers,
   getCustomerVehicles,
 } from "@/lib/master-data/relations";
+import { getCustomerEsidProfile } from "@/lib/master-data/customer-esid-profiles";
 
 export function useCustomers(filters?: CustomerFilters) {
   return useQuery({
@@ -54,6 +57,39 @@ export function useCustomerConsignees(customerId: string) {
     queryFn: async () => {
       const supabase = createClient();
       return getCustomerConsignees(supabase, customerId);
+    },
+    enabled: Boolean(customerId),
+  });
+}
+
+export function useCustomerAgents(customerId: string) {
+  return useQuery({
+    queryKey: ["customer", customerId, "agents"],
+    queryFn: async () => {
+      const supabase = createClient();
+      return getCustomerAgents(supabase, customerId);
+    },
+    enabled: Boolean(customerId),
+  });
+}
+
+export function useCustomerNotifies(customerId: string) {
+  return useQuery({
+    queryKey: ["customer", customerId, "notifies"],
+    queryFn: async () => {
+      const supabase = createClient();
+      return getCustomerNotifies(supabase, customerId);
+    },
+    enabled: Boolean(customerId),
+  });
+}
+
+export function useCustomerEsidProfile(customerId: string) {
+  return useQuery({
+    queryKey: ["customer", customerId, "esid-profile"],
+    queryFn: async () => {
+      const supabase = createClient();
+      return getCustomerEsidProfile(supabase, customerId);
     },
     enabled: Boolean(customerId),
   });

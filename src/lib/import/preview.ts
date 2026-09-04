@@ -1,15 +1,5 @@
 import { normalizeCustomerCode, normalizePlateNumber } from "@/lib/normalization";
-import type { ImportEntityType, ImportPreviewRow, ImportRowAction } from "@/lib/import/types";
-
-export type ExistingKeys = {
-  customerCodes?: Set<string>;
-  partyNames?: Set<string>;
-  driverDocuments?: Set<string>;
-  driverCodes?: Set<string>;
-  vehiclePlates?: Set<string>;
-  commodityCodes?: Set<string>;
-  commodityNames?: Set<string>;
-};
+import type { ImportEntityType, ImportPreviewRow } from "@/lib/import/types";
 
 export type ExistingMatch = {
   id: string;
@@ -18,11 +8,17 @@ export type ExistingMatch = {
 
 export type ExistingMatches = {
   customersByCode?: Map<string, ExistingMatch>;
+  partiesByCode?: Map<string, ExistingMatch>;
+  partiesByName?: Map<string, ExistingMatch>;
   driversByDocument?: Map<string, ExistingMatch>;
   driversByCode?: Map<string, ExistingMatch>;
   vehiclesByPlate?: Map<string, ExistingMatch>;
   commoditiesByCode?: Map<string, ExistingMatch>;
 };
+
+function normalizePartyName(value: string) {
+  return value.trim().toLowerCase();
+}
 
 function rowBase(rowNumber: number, data: Record<string, string>): ImportPreviewRow {
   return {
@@ -39,6 +35,7 @@ export function buildImportPreview(
   existing: ExistingMatches,
 ): ImportPreviewRow[] {
   const batchCodes = new Set<string>();
+  const batchPartyKeys = new Set<string>();
 
   return rows.map((data, index) => {
     const rowNumber = index + 2;
@@ -76,9 +73,67 @@ export function buildImportPreview(
         return preview;
       }
       case "parties": {
-        if (!data.name?.trim()) {
+        const name = data.name?.trim() ?? "";
+        if (!name) {
           return { ...preview, status: "error", action: "skip", message: "Thiếu tên party" };
         }
+
+        const code = (data.code ?? "").trim().toUpperCase();
+        const batchKey = code ? `code:${code}` : `name:${normalizePartyName(name)}`;
+        if (batchPartyKeys.has(batchKey)) {
+          return {
+            ...preview,
+            status: "duplicate",
+            action: "skip",
+            message: "Trùng party trong file import",
+          };
+        }
+        batchPartyKeys.add(batchKey);
+
+        const codeMatch = code ? existing.partiesByCode?.get(code) : undefined;
+        const nameMatch = existing.partiesByName?.get(normalizePartyName(name));
+        const match = codeMatch ?? nameMatch;
+        if (match) {
+          return {
+            ...preview,
+            status: "duplicate",
+            action: "update",
+            message: codeMatch ? "Party đã tồn tại (code)" : "Party đã tồn tại (tên)",
+            matchId: match.id,
+            matchLabel: match.label,
+          };
+        }
+
+        const customerCode = normalizeCustomerCode(data.customer_code ?? "");
+        const role = (data.role ?? "").trim().toUpperCase();
+        if (customerCode || role) {
+          if (!customerCode) {
+            return {
+              ...preview,
+              status: "warning",
+              action: "create",
+              message: "Có role nhưng thiếu customer_code — sẽ tạo party không gắn customer",
+            };
+          }
+          if (!["SHIPPER", "CONSIGNEE", "AGENT", "NOTIFY"].includes(role)) {
+            return {
+              ...preview,
+              status: "warning",
+              action: "create",
+              message: "role không hợp lệ — sẽ tạo party không gắn customer",
+            };
+          }
+          const customer = existing.customersByCode?.get(customerCode);
+          if (!customer) {
+            return {
+              ...preview,
+              status: "warning",
+              action: "create",
+              message: `Không tìm thấy customer ${customerCode} — sẽ tạo party không gắn`,
+            };
+          }
+        }
+
         return preview;
       }
       case "drivers": {
@@ -167,8 +222,4 @@ export function summarizePreview(rows: ImportPreviewRow[]) {
     errors: rows.filter((row) => row.status === "error").length,
     duplicates: rows.filter((row) => row.status === "duplicate").length,
   };
-}
-
-export function setRowAction(row: ImportPreviewRow, action: ImportRowAction): ImportPreviewRow {
-  return { ...row, action };
 }

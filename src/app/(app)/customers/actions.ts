@@ -47,6 +47,10 @@ import {
   updateCustomerVehicleSchema,
 } from "@/lib/validation/transport-relations";
 import type { Json } from "@/types/database";
+import {
+  customerEsidProfileUpdateSchema,
+} from "@/lib/validation/customer-esid-profile";
+import { upsertCustomerEsidProfile } from "@/lib/master-data/customer-esid-profiles";
 
 async function requireWrite() {
   const session = await getSession();
@@ -183,6 +187,7 @@ export async function linkPartyAction(input: unknown) {
         postal_code: "",
         country_code: "",
         phone: parsed.data.new_party.phone ?? "",
+        fax: "",
         email: parsed.data.new_party.email ?? "",
         status: "ACTIVE",
         notes: "",
@@ -543,6 +548,32 @@ export async function updateVehiclePreferenceAction(input: unknown) {
   } catch (error) {
     return {
       error: error instanceof AppError ? error.message : "Không thể cập nhật vehicle ưu tiên",
+    };
+  }
+}
+
+export async function upsertCustomerEsidProfileAction(customerId: string, input: unknown) {
+  const session = await requireWrite();
+  const parsed = customerEsidProfileUpdateSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dữ liệu ESID không hợp lệ" };
+  }
+
+  const supabase = await createClient();
+  try {
+    const profile = await upsertCustomerEsidProfile(supabase, customerId, parsed.data);
+    await writeAuditLog(supabase, {
+      actorUserId: session.userId,
+      action: "UPSERT",
+      tableName: "customer_esid_profiles",
+      recordId: customerId,
+      newData: profile as unknown as Json,
+    });
+    revalidatePath(`/customers/${customerId}`);
+    return { data: profile };
+  } catch (error) {
+    return {
+      error: error instanceof AppError ? error.message : "Không thể lưu hồ sơ ESID",
     };
   }
 }

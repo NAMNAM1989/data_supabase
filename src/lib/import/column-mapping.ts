@@ -19,6 +19,7 @@ const FIELD_ALIASES: Record<ImportEntityType, FieldMapping> = {
     tax_code: ["tax_code", "mst"],
     address: ["address", "địa chỉ", "dia chi"],
     phone: ["phone", "sdt"],
+    fax: ["fax"],
     email: ["email"],
     role: ["role", "vai trò", "vai tro"],
     customer_code: ["customer_code", "ma kh", "mã kh"],

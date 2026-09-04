@@ -49,6 +49,7 @@ export function PartyDetailClient({ partyId }: { partyId: string }) {
         code: formString(formData, "code"),
         address: formString(formData, "address"),
         phone: formString(formData, "phone"),
+        fax: formString(formData, "fax"),
         email: formString(formData, "email"),
         tax_code: formString(formData, "tax_code"),
         notes: formString(formData, "notes"),
@@ -120,6 +121,10 @@ export function PartyDetailClient({ partyId }: { partyId: string }) {
               <div className="flex flex-col gap-2">
                 <Label htmlFor="phone">Phone</Label>
                 <Input id="phone" name="phone" defaultValue={record.phone ?? ""} />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="fax">Fax (ESID)</Label>
+                <Input id="fax" name="fax" defaultValue={record.fax ?? ""} />
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="email">Email</Label>

@@ -25,6 +25,7 @@ import {
   updateDriverPreferenceAction,
   updatePartyRelationAction,
   updateVehiclePreferenceAction,
+  upsertCustomerEsidProfileAction,
 } from "@/app/(app)/customers/actions";
 import { useProfile } from "@/components/providers/profile-provider";
 import { DetailEditHint, EditRowButton } from "@/components/shared/edit-row-actions";
@@ -61,9 +62,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   useCustomer,
+  useCustomerAgents,
   useCustomerCommodities,
   useCustomerConsignees,
   useCustomerDrivers,
+  useCustomerEsidProfile,
+  useCustomerNotifies,
   useCustomerShippers,
   useCustomerVehicles,
 } from "@/hooks/use-customers";
@@ -71,6 +75,7 @@ import { useCommodities } from "@/hooks/use-commodities";
 import { useDestinations } from "@/hooks/use-destinations";
 import { useDrivers } from "@/hooks/use-drivers";
 import { useParties } from "@/hooks/use-parties";
+import { useSubmitLock } from "@/hooks/use-submit-lock";
 import { useVehicles } from "@/hooks/use-vehicles";
 import { canPerform, canWrite } from "@/lib/auth/permissions";
 import { CUSTOMER_TYPES } from "@/lib/validation/customer";
@@ -87,6 +92,9 @@ export function CustomerDetailClient({ customerId }: CustomerDetailClientProps) 
   const { data: customer, isLoading, refetch } = useCustomer(customerId);
   const shippers = useCustomerShippers(customerId);
   const consignees = useCustomerConsignees(customerId);
+  const agents = useCustomerAgents(customerId);
+  const notifies = useCustomerNotifies(customerId);
+  const esidProfile = useCustomerEsidProfile(customerId);
   const commodities = useCustomerCommodities(customerId);
   const preferredDrivers = useCustomerDrivers(customerId);
   const preferredVehicles = useCustomerVehicles(customerId);
@@ -176,8 +184,11 @@ export function CustomerDetailClient({ customerId }: CustomerDetailClientProps) 
       <Tabs defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="esid">ESID Profile</TabsTrigger>
           <TabsTrigger value="shippers">Shippers</TabsTrigger>
           <TabsTrigger value="consignees">Consignees</TabsTrigger>
+          <TabsTrigger value="agents">Agents</TabsTrigger>
+          <TabsTrigger value="notifies">Notify</TabsTrigger>
           <TabsTrigger value="commodities">Commodities</TabsTrigger>
           <TabsTrigger value="drivers">Preferred Drivers</TabsTrigger>
           <TabsTrigger value="vehicles">Preferred Vehicles</TabsTrigger>
@@ -275,6 +286,16 @@ export function CustomerDetailClient({ customerId }: CustomerDetailClientProps) 
           </Card>
         </TabsContent>
 
+        <TabsContent value="esid">
+          <EsidProfileTab
+            customerId={customerId}
+            profile={esidProfile.data}
+            loading={esidProfile.isLoading}
+            canEdit={canWrite(role)}
+            onChanged={() => esidProfile.refetch()}
+          />
+        </TabsContent>
+
         <TabsContent value="shippers">
           <PartyRelationTab
             customerId={customerId}
@@ -294,6 +315,28 @@ export function CustomerDetailClient({ customerId }: CustomerDetailClientProps) 
             loading={consignees.isLoading}
             canEdit={canWrite(role)}
             onChanged={() => consignees.refetch()}
+          />
+        </TabsContent>
+
+        <TabsContent value="agents">
+          <PartyRelationTab
+            customerId={customerId}
+            role="AGENT"
+            rows={agents.data ?? []}
+            loading={agents.isLoading}
+            canEdit={canWrite(role)}
+            onChanged={() => agents.refetch()}
+          />
+        </TabsContent>
+
+        <TabsContent value="notifies">
+          <PartyRelationTab
+            customerId={customerId}
+            role="NOTIFY"
+            rows={notifies.data ?? []}
+            loading={notifies.isLoading}
+            canEdit={canWrite(role)}
+            onChanged={() => notifies.refetch()}
           />
         </TabsContent>
 
@@ -348,6 +391,210 @@ function DetailItem({
   );
 }
 
+function EsidProfileTab({
+  customerId,
+  profile,
+  loading,
+  canEdit,
+  onChanged,
+}: {
+  customerId: string;
+  profile: Tables<"customer_esid_profiles"> | null | undefined;
+  loading: boolean;
+  canEdit: boolean;
+  onChanged: () => void;
+}) {
+  if (loading) return <Skeleton className="h-48 w-full" />;
+
+  // Remount form when profile finishes loading so controlled Selects sync from DB.
+  return (
+    <EsidProfileForm
+      key={profile?.customer_id ?? `new-${customerId}`}
+      customerId={customerId}
+      profile={profile}
+      canEdit={canEdit}
+      onChanged={onChanged}
+    />
+  );
+}
+
+function EsidProfileForm({
+  customerId,
+  profile,
+  canEdit,
+  onChanged,
+}: {
+  customerId: string;
+  profile: Tables<"customer_esid_profiles"> | null | undefined;
+  canEdit: boolean;
+  onChanged: () => void;
+}) {
+  const parties = useParties();
+  const destinations = useDestinations();
+  const { saving, runLocked } = useSubmitLock();
+  const [agentPartyId, setAgentPartyId] = useState(profile?.default_agent_party_id ?? "");
+  const [notifyPartyId, setNotifyPartyId] = useState(profile?.default_notify_party_id ?? "");
+  const [originId, setOriginId] = useState(profile?.default_origin_id ?? "");
+  const [isConsol, setIsConsol] = useState(profile?.default_is_consol ?? false);
+  const [otherHandling, setOtherHandling] = useState(profile?.default_other_handling ?? true);
+
+  async function handleSave(formData: FormData) {
+    await runLocked(async () => {
+      const result = await upsertCustomerEsidProfileAction(customerId, {
+        default_agent_party_id: agentPartyId || null,
+        default_notify_party_id: notifyPartyId || null,
+        default_origin_id: originId || null,
+        default_payment_term: String(formData.get("default_payment_term") ?? ""),
+        declarant_name: String(formData.get("declarant_name") ?? ""),
+        declarant_phone: String(formData.get("declarant_phone") ?? ""),
+        declarant_id_number: String(formData.get("declarant_id_number") ?? ""),
+        default_is_consol: isConsol,
+        default_other_handling: otherHandling,
+        notes: String(formData.get("notes") ?? ""),
+      });
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Đã lưu hồ sơ ESID");
+      onChanged();
+    });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Hồ sơ mặc định khai ESID (TCS)</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {canEdit ? (
+          <form action={handleSave} className="grid gap-4 md:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="declarant_name">Người đăng ký khai</Label>
+              <Input
+                id="declarant_name"
+                name="declarant_name"
+                defaultValue={profile?.declarant_name ?? ""}
+                placeholder="#shpRegNam"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="declarant_phone">SĐT người khai</Label>
+              <Input
+                id="declarant_phone"
+                name="declarant_phone"
+                defaultValue={profile?.declarant_phone ?? ""}
+                placeholder="#shpRegTel"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="declarant_id_number">CCCD/CMND người khai</Label>
+              <Input
+                id="declarant_id_number"
+                name="declarant_id_number"
+                defaultValue={profile?.declarant_id_number ?? ""}
+                placeholder="#shpRegIdx"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="default_payment_term">Hình thức thanh toán</Label>
+              <Input
+                id="default_payment_term"
+                name="default_payment_term"
+                defaultValue={profile?.default_payment_term ?? "Chuyển khoản/Transfer"}
+                placeholder="#codPayMod"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label>Origin IATA mặc định</Label>
+              <Select value={originId || undefined} onValueChange={(v) => setOriginId(v ?? "")}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Chọn origin (thường SGN)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(destinations.data ?? []).map((d) => (
+                    <SelectItem key={d.id} value={d.id}>
+                      {d.iata_code} — {d.city_name ?? d.country_code}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label>Agent mặc định</Label>
+              <Select
+                value={agentPartyId || undefined}
+                onValueChange={(v) => setAgentPartyId(v ?? "")}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Chọn party Agent" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(parties.data ?? []).map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-2 md:col-span-2">
+              <Label>Notify mặc định (optional)</Label>
+              <Select
+                value={notifyPartyId || undefined}
+                onValueChange={(v) => setNotifyPartyId(v ?? "")}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Chọn party Notify" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(parties.data ?? []).map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={isConsol}
+                onChange={(e) => setIsConsol(e.target.checked)}
+              />
+              Default Consol (#shcConsol)
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={otherHandling}
+                onChange={(e) => setOtherHandling(e.target.checked)}
+              />
+              Default Other handling (#shcOth)
+            </label>
+            <div className="flex flex-col gap-2 md:col-span-2">
+              <Label htmlFor="notes">Notes</Label>
+              <Textarea id="notes" name="notes" defaultValue={profile?.notes ?? ""} rows={2} />
+            </div>
+            <div className="md:col-span-2">
+              <Button type="submit" disabled={saving}>
+                {saving ? "Đang lưu..." : "Lưu hồ sơ ESID"}
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <dl className="grid gap-3 md:grid-cols-2">
+            <DetailItem label="Người khai" value={profile?.declarant_name} />
+            <DetailItem label="SĐT khai" value={profile?.declarant_phone} />
+            <DetailItem label="CCCD/CMND" value={profile?.declarant_id_number} />
+            <DetailItem label="Payment" value={profile?.default_payment_term} />
+          </dl>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function PartyRelationTab({
   customerId,
   role,
@@ -357,7 +604,7 @@ function PartyRelationTab({
   onChanged,
 }: {
   customerId: string;
-  role: "SHIPPER" | "CONSIGNEE";
+  role: "SHIPPER" | "CONSIGNEE" | "AGENT" | "NOTIFY";
   rows: Array<{
     id: string;
     is_default: boolean;
@@ -460,11 +707,26 @@ function PartyRelationTab({
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-base">{role === "SHIPPER" ? "Shippers" : "Consignees"}</CardTitle>
+        <CardTitle className="text-base">
+          {role === "SHIPPER"
+            ? "Shippers"
+            : role === "CONSIGNEE"
+              ? "Consignees"
+              : role === "AGENT"
+                ? "Agents (ESID)"
+                : "Notify parties"}
+        </CardTitle>
         {canEdit ? (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger render={<Button size="sm" />}>
-              Add {role === "SHIPPER" ? "Shipper" : "Consignee"}
+              Add{" "}
+              {role === "SHIPPER"
+                ? "Shipper"
+                : role === "CONSIGNEE"
+                  ? "Consignee"
+                  : role === "AGENT"
+                    ? "Agent"
+                    : "Notify"}
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>

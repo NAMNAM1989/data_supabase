@@ -50,4 +50,23 @@ describe("buildImportPreview", () => {
     expect(rows[0].status).toBe("duplicate");
     expect(rows[0].matchId).toBe("v1");
   });
+
+  it("flags existing party by code and name", () => {
+    const rows = buildImportPreview(
+      "parties",
+      [
+        { name: "ABC Corp", code: "P01" },
+        { name: "Existing Name", code: "" },
+      ],
+      {
+        partiesByCode: new Map([["P01", { id: "p1", label: "ABC Corp" }]]),
+        partiesByName: new Map([["existing name", { id: "p2", label: "Existing Name" }]]),
+      },
+    );
+
+    expect(rows[0].action).toBe("update");
+    expect(rows[0].matchId).toBe("p1");
+    expect(rows[1].action).toBe("update");
+    expect(rows[1].matchId).toBe("p2");
+  });
 });

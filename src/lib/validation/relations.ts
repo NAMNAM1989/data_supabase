@@ -3,7 +3,7 @@ import { z } from "zod";
 export const linkPartySchema = z.object({
   customer_id: z.string().uuid(),
   party_id: z.string().uuid().optional(),
-  role: z.enum(["SHIPPER", "CONSIGNEE"]),
+  role: z.enum(["SHIPPER", "CONSIGNEE", "AGENT", "NOTIFY"]),
   destination_id: z.string().uuid().optional().nullable(),
   is_default: z.boolean().default(false),
   new_party: z

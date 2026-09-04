@@ -14,6 +14,7 @@ export const partySchema = z.object({
   postal_code: optionalText(),
   country_code: optionalText(),
   phone: optionalText().transform((v) => (v ? normalizePhone(v) : "")),
+  fax: optionalText(),
   email: optionalText()
     .refine((v) => !v || z.string().email().safeParse(v).success, "Email không hợp lệ")
     .transform((v) => (v ? normalizeEmail(v) : "")),

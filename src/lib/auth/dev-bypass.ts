@@ -1,9 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/types/database";
-import type { AuthSession } from "@/types/auth";
-
-const DEV_ADMIN_ID = "7d346350-06e5-4e53-9ee8-c2a0d87e6bfa";
 
 export function isDevAuthBypassEnabled() {
   return (
@@ -18,6 +15,11 @@ export function getDevAuthCredentials() {
   };
 }
 
+/**
+ * Auto sign-in for local QA when DEV_SKIP_AUTH=true.
+ * Returns true only when a real Supabase session (JWT cookies) exists.
+ * Never fabricates a mock ADMIN profile — that caused empty RLS reads.
+ */
 export async function ensureDevAuthSession(supabase: SupabaseClient<Database>) {
   if (!isDevAuthBypassEnabled()) return false;
 
@@ -29,35 +31,17 @@ export async function ensureDevAuthSession(supabase: SupabaseClient<Database>) {
 
   const { email, password } = getDevAuthCredentials();
   if (!password) {
-    console.warn(
-      "[dev-auth] DEV_SKIP_AUTH=true nhưng thiếu DEV_AUTH_PASSWORD — UI chạy được, query client có thể lỗi RLS",
+    console.error(
+      "[dev-auth] DEV_SKIP_AUTH=true nhưng thiếu DEV_AUTH_PASSWORD — bắt buộc password để có JWT thật",
     );
     return false;
   }
 
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
-    console.warn("[dev-auth] Auto sign-in failed:", error.message);
+    console.error("[dev-auth] Auto sign-in failed:", error.message);
     return false;
   }
 
   return true;
-}
-
-export function getDevMockSession(): AuthSession {
-  const { email } = getDevAuthCredentials();
-  const now = new Date().toISOString();
-
-  return {
-    userId: DEV_ADMIN_ID,
-    email,
-    profile: {
-      id: DEV_ADMIN_ID,
-      display_name: "Dev Admin",
-      role: "ADMIN",
-      status: "ACTIVE",
-      created_at: now,
-      updated_at: now,
-    },
-  };
 }

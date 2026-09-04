@@ -11,7 +11,8 @@ import { writeAuditLog } from "@/lib/master-data/audit";
 import { createCommodity, updateCommodity } from "@/lib/master-data/commodities";
 import { createCustomer, updateCustomer } from "@/lib/master-data/customers";
 import { createDriver, updateDriver } from "@/lib/master-data/drivers";
-import { createParty } from "@/lib/master-data/parties";
+import { createParty, updateParty } from "@/lib/master-data/parties";
+import { linkCustomerParty } from "@/lib/master-data/relations";
 import { createVehicle, updateVehicle } from "@/lib/master-data/vehicles";
 import { AppError } from "@/lib/errors";
 import { normalizeCustomerCode, normalizePlateNumber } from "@/lib/normalization";
@@ -19,6 +20,32 @@ import { createClient } from "@/lib/supabase/server";
 import { CUSTOMER_TYPES } from "@/lib/validation/customer";
 import type { Json } from "@/types/database";
 
+const PARTY_LINK_ROLES = ["SHIPPER", "CONSIGNEE", "AGENT", "NOTIFY"] as const;
+type PartyLinkRole = (typeof PARTY_LINK_ROLES)[number];
+
+function isPartyLinkRole(value: string): value is PartyLinkRole {
+  return (PARTY_LINK_ROLES as readonly string[]).includes(value);
+}
+
+async function maybeLinkImportedParty(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  partyId: string,
+  data: Record<string, string>,
+  customersByCode: Map<string, { id: string }>,
+) {
+  const customerCode = normalizeCustomerCode(data.customer_code ?? "");
+  const role = (data.role ?? "").trim().toUpperCase();
+  if (!customerCode || !isPartyLinkRole(role)) return;
+
+  const customer = customersByCode.get(customerCode);
+  if (!customer) return;
+
+  await linkCustomerParty(supabase, {
+    customer_id: customer.id,
+    party_id: partyId,
+    role,
+  });
+}
 async function requireImport() {
   const session = await getSession();
   if (!session?.profile || !canPerform(session.profile.role, "import")) {
@@ -36,10 +63,32 @@ async function loadExistingMatches(entity: ImportEntityType) {
   const supabase = await createClient();
   const matches: Parameters<typeof buildImportPreview>[2] = {};
 
-  if (entity === "customers" || entity === "parties") {
+  if (entity === "customers") {
     const { data } = await supabase.from("customers").select("id, code, name");
     matches.customersByCode = new Map(
       (data ?? []).map((row) => [normalizeCustomerCode(row.code), { id: row.id, label: `${row.code} — ${row.name}` }]),
+    );
+  }
+
+  if (entity === "parties") {
+    const [{ data: parties }, { data: customers }] = await Promise.all([
+      supabase.from("parties").select("id, code, name"),
+      supabase.from("customers").select("id, code, name"),
+    ]);
+
+    matches.partiesByCode = new Map(
+      (parties ?? [])
+        .filter((row) => row.code)
+        .map((row) => [row.code!.trim().toUpperCase(), { id: row.id, label: row.name }]),
+    );
+    matches.partiesByName = new Map(
+      (parties ?? []).map((row) => [row.name.trim().toLowerCase(), { id: row.id, label: row.name }]),
+    );
+    matches.customersByCode = new Map(
+      (customers ?? []).map((row) => [
+        normalizeCustomerCode(row.code),
+        { id: row.id, label: `${row.code} — ${row.name}` },
+      ]),
     );
   }
 
@@ -137,6 +186,14 @@ export async function commitImportAction(input: unknown) {
   const supabase = await createClient();
   const result: ImportCommitResult = { created: 0, updated: 0, skipped: 0, errors: [] };
 
+  let customersByCodeForPartyLink: Map<string, { id: string }> | null = null;
+  if (parsed.data.entity === "parties") {
+    const { data: customers } = await supabase.from("customers").select("id, code");
+    customersByCodeForPartyLink = new Map(
+      (customers ?? []).map((row) => [normalizeCustomerCode(row.code), { id: row.id }]),
+    );
+  }
+
   for (const row of parsed.data.rows) {
     if (row.action === "skip") {
       result.skipped += 1;
@@ -184,7 +241,7 @@ export async function commitImportAction(input: unknown) {
       }
 
       if (parsed.data.entity === "parties") {
-        const created = await createParty(supabase, {
+        const payload = {
           name: row.data.name,
           code: row.data.code,
           tax_code: row.data.tax_code,
@@ -194,18 +251,56 @@ export async function commitImportAction(input: unknown) {
           postal_code: "",
           country_code: "",
           phone: row.data.phone,
+          fax: row.data.fax ?? "",
           email: row.data.email,
-          status: "ACTIVE",
+          status: "ACTIVE" as const,
           notes: "",
-        });
-        await writeAuditLog(supabase, {
-          actorUserId: session.userId,
-          action: "IMPORT",
-          tableName: "parties",
-          recordId: created.id,
-          newData: created as unknown as Json,
-        });
-        result.created += 1;
+        };
+
+        let partyId: string;
+        if (row.action === "update" && row.matchId) {
+          const updated = await updateParty(supabase, row.matchId, payload);
+          partyId = updated.id;
+          await writeAuditLog(supabase, {
+            actorUserId: session.userId,
+            action: "IMPORT",
+            tableName: "parties",
+            recordId: row.matchId,
+            newData: updated as unknown as Json,
+          });
+          result.updated += 1;
+        } else {
+          const created = await createParty(supabase, payload);
+          partyId = created.id;
+          await writeAuditLog(supabase, {
+            actorUserId: session.userId,
+            action: "IMPORT",
+            tableName: "parties",
+            recordId: created.id,
+            newData: created as unknown as Json,
+          });
+          result.created += 1;
+        }
+
+        if (customersByCodeForPartyLink) {
+          try {
+            await maybeLinkImportedParty(
+              supabase,
+              partyId,
+              row.data,
+              customersByCodeForPartyLink,
+            );
+          } catch (linkError) {
+            // Party đã lưu; link fail không rollback — ghi vào errors để user biết
+            result.errors.push({
+              rowNumber: row.rowNumber,
+              message:
+                linkError instanceof AppError
+                  ? `Party OK nhưng không gắn customer: ${linkError.message}`
+                  : "Party OK nhưng không gắn được customer",
+            });
+          }
+        }
       }
 
       if (parsed.data.entity === "drivers") {
@@ -291,7 +386,14 @@ export async function commitImportAction(input: unknown) {
         };
 
         if (row.action === "update" && row.matchId) {
-          await updateCommodity(supabase, row.matchId, payload);
+          const updated = await updateCommodity(supabase, row.matchId, payload);
+          await writeAuditLog(supabase, {
+            actorUserId: session.userId,
+            action: "IMPORT",
+            tableName: "commodities",
+            recordId: row.matchId,
+            newData: updated as unknown as Json,
+          });
           result.updated += 1;
         } else {
           const created = await createCommodity(supabase, payload);

@@ -53,12 +53,12 @@ audit_logs (standalone)
 | code | text | UNIQUE, nullable |
 | name | text | NOT NULL |
 | tax_code, address, city, state, postal_code, country_code | text | nullable |
-| phone, email | text | nullable |
+| phone, fax, email | text | nullable |
 | status | record_status | NOT NULL |
 | notes | text | nullable |
 | metadata | jsonb | NOT NULL |
 
-**Quy tắc:** Một party entity dùng chung cho nhiều customers. Không duplicate party per customer.
+**Quy tắc:** Một party entity dùng chung cho nhiều customers. Không duplicate party per customer. `fax` map ESID `#faxShp/#faxAgt/#faxCne`.
 
 ### 2.3 customer_parties
 
@@ -67,12 +67,27 @@ audit_logs (standalone)
 | id | uuid | PK |
 | customer_id | uuid | FK → customers |
 | party_id | uuid | FK → parties |
-| role | party_role | SHIPPER \| CONSIGNEE |
-| destination_id | uuid | FK → destinations, nullable |
+| role | party_role | SHIPPER \| CONSIGNEE \| AGENT \| NOTIFY |
+| destination_id | uuid | FK → destinations, nullable (Consignee) |
 | is_default | boolean | default false |
 | status | record_status | NOT NULL |
 
 **Unique:** `(customer_id, party_id, role)`
+
+### 2.3b customer_esid_profiles (1:1)
+
+| Column | Type | Constraints |
+|---|---|---|
+| customer_id | uuid | PK FK → customers |
+| default_agent_party_id | uuid | FK → parties |
+| default_notify_party_id | uuid | FK → parties |
+| default_origin_id | uuid | FK → destinations |
+| default_payment_term | text | default `Chuyển khoản/Transfer` |
+| declarant_name / phone / id_number | text | map `#shpRegNam/Tel/Idx` |
+| default_is_consol / other_handling | boolean | ESID SHC defaults |
+| notes, metadata | | |
+
+Xem ADR-006.
 
 ### 2.4 commodities
 

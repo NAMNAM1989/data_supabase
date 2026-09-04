@@ -19,25 +19,26 @@ export type CustomerVehicle = Tables<"customer_vehicles"> & {
 };
 
 export async function getCustomerShippers(supabase: Supabase, customerId: string) {
-  const { data, error } = await supabase
-    .from("customer_parties")
-    .select(
-      `
-      *,
-      party:parties(*),
-      destination:destinations(*)
-    `,
-    )
-    .eq("customer_id", customerId)
-    .eq("role", "SHIPPER")
-    .neq("status", "ARCHIVED")
-    .order("is_default", { ascending: false });
-
-  if (error) throw mapSupabaseError(error);
-  return (data ?? []) as CustomerParty[];
+  return getCustomerPartiesByRole(supabase, customerId, "SHIPPER");
 }
 
 export async function getCustomerConsignees(supabase: Supabase, customerId: string) {
+  return getCustomerPartiesByRole(supabase, customerId, "CONSIGNEE");
+}
+
+export async function getCustomerAgents(supabase: Supabase, customerId: string) {
+  return getCustomerPartiesByRole(supabase, customerId, "AGENT");
+}
+
+export async function getCustomerNotifies(supabase: Supabase, customerId: string) {
+  return getCustomerPartiesByRole(supabase, customerId, "NOTIFY");
+}
+
+async function getCustomerPartiesByRole(
+  supabase: Supabase,
+  customerId: string,
+  role: "SHIPPER" | "CONSIGNEE" | "AGENT" | "NOTIFY",
+) {
   const { data, error } = await supabase
     .from("customer_parties")
     .select(
@@ -48,7 +49,7 @@ export async function getCustomerConsignees(supabase: Supabase, customerId: stri
     `,
     )
     .eq("customer_id", customerId)
-    .eq("role", "CONSIGNEE")
+    .eq("role", role)
     .neq("status", "ARCHIVED")
     .order("is_default", { ascending: false });
 
@@ -78,7 +79,7 @@ export async function linkCustomerParty(
   input: {
     customer_id: string;
     party_id: string;
-    role: "SHIPPER" | "CONSIGNEE";
+    role: "SHIPPER" | "CONSIGNEE" | "AGENT" | "NOTIFY";
     destination_id?: string | null;
     is_default?: boolean;
   },
@@ -121,11 +122,12 @@ export async function setDefaultCustomerParty(supabase: Supabase, relationId: st
 
   if (fetchError) throw mapSupabaseError(fetchError);
 
-  await supabase
+  const { error: clearError } = await supabase
     .from("customer_parties")
     .update({ is_default: false })
     .eq("customer_id", relation.customer_id)
     .eq("role", relation.role);
+  if (clearError) throw mapSupabaseError(clearError);
 
   const { data, error } = await supabase
     .from("customer_parties")
@@ -249,11 +251,12 @@ export async function setDefaultCustomerDriver(supabase: Supabase, relationId: s
 
   if (fetchError) throw mapSupabaseError(fetchError);
 
-  await supabase
+  const { error: clearError } = await supabase
     .from("customer_drivers")
     .update({ is_default: false })
     .eq("customer_id", relation.customer_id)
     .eq("status", "ACTIVE");
+  if (clearError) throw mapSupabaseError(clearError);
 
   const { data, error } = await supabase
     .from("customer_drivers")
@@ -306,11 +309,12 @@ export async function setDefaultCustomerVehicle(supabase: Supabase, relationId: 
 
   if (fetchError) throw mapSupabaseError(fetchError);
 
-  await supabase
+  const { error: clearError } = await supabase
     .from("customer_vehicles")
     .update({ is_default: false })
     .eq("customer_id", relation.customer_id)
     .eq("status", "ACTIVE");
+  if (clearError) throw mapSupabaseError(clearError);
 
   const { data, error } = await supabase
     .from("customer_vehicles")
@@ -358,12 +362,13 @@ export async function updateCustomerParty(
   }
 
   if (input.is_default === true) {
-    await supabase
+    const { error: clearError } = await supabase
       .from("customer_parties")
       .update({ is_default: false })
       .eq("customer_id", current.customer_id)
       .eq("role", current.role)
       .neq("id", relationId);
+    if (clearError) throw mapSupabaseError(clearError);
   }
 
   const patch: {
@@ -420,11 +425,12 @@ export async function updateCustomerCommodity(
   }
 
   if (input.is_default === true) {
-    await supabase
+    const { error: clearError } = await supabase
       .from("customer_commodities")
       .update({ is_default: false })
       .eq("customer_id", current.customer_id)
       .neq("id", relationId);
+    if (clearError) throw mapSupabaseError(clearError);
   }
 
   const patch: {
@@ -458,11 +464,12 @@ export async function setDefaultCustomerCommodity(supabase: Supabase, relationId
 
   if (fetchError) throw mapSupabaseError(fetchError);
 
-  await supabase
+  const { error: clearError } = await supabase
     .from("customer_commodities")
     .update({ is_default: false })
     .eq("customer_id", relation.customer_id)
     .eq("status", "ACTIVE");
+  if (clearError) throw mapSupabaseError(clearError);
 
   const { data, error } = await supabase
     .from("customer_commodities")
@@ -505,12 +512,13 @@ export async function updateCustomerDriver(
   }
 
   if (input.is_default === true) {
-    await supabase
+    const { error: clearError } = await supabase
       .from("customer_drivers")
       .update({ is_default: false })
       .eq("customer_id", current.customer_id)
       .eq("status", "ACTIVE")
       .neq("id", relationId);
+    if (clearError) throw mapSupabaseError(clearError);
   }
 
   const patch: { driver_id?: string; is_default?: boolean } = {};
@@ -558,12 +566,13 @@ export async function updateCustomerVehicle(
   }
 
   if (input.is_default === true) {
-    await supabase
+    const { error: clearError } = await supabase
       .from("customer_vehicles")
       .update({ is_default: false })
       .eq("customer_id", current.customer_id)
       .eq("status", "ACTIVE")
       .neq("id", relationId);
+    if (clearError) throw mapSupabaseError(clearError);
   }
 
   const patch: { vehicle_id?: string; is_default?: boolean } = {};

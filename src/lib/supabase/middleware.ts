@@ -33,16 +33,18 @@ export async function updateSession(request: NextRequest) {
   const isPublicRoute =
     pathname === "/api/health" || pathname.startsWith("/_next");
 
+  // Dev bypass only short-circuits when a real JWT session was established.
+  // Failed auto sign-in falls through to normal auth (no mock ADMIN).
   if (isDevAuthBypassEnabled()) {
-    await ensureDevAuthSession(supabase);
-
-    if (isAuthRoute) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/dashboard";
-      return NextResponse.redirect(url);
+    const signedIn = await ensureDevAuthSession(supabase);
+    if (signedIn) {
+      if (isAuthRoute) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/dashboard";
+        return NextResponse.redirect(url);
+      }
+      return supabaseResponse;
     }
-
-    return supabaseResponse;
   }
 
   const {

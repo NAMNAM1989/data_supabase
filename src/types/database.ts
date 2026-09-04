@@ -354,6 +354,86 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_esid_profiles: {
+        Row: {
+          created_at: string
+          customer_id: string
+          declarant_id_number: string | null
+          declarant_name: string | null
+          declarant_phone: string | null
+          default_agent_party_id: string | null
+          default_is_consol: boolean
+          default_notify_party_id: string | null
+          default_origin_id: string | null
+          default_other_handling: boolean
+          default_payment_term: string
+          metadata: Json
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          declarant_id_number?: string | null
+          declarant_name?: string | null
+          declarant_phone?: string | null
+          default_agent_party_id?: string | null
+          default_is_consol?: boolean
+          default_notify_party_id?: string | null
+          default_origin_id?: string | null
+          default_other_handling?: boolean
+          default_payment_term?: string
+          metadata?: Json
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          declarant_id_number?: string | null
+          declarant_name?: string | null
+          declarant_phone?: string | null
+          default_agent_party_id?: string | null
+          default_is_consol?: boolean
+          default_notify_party_id?: string | null
+          default_origin_id?: string | null
+          default_other_handling?: boolean
+          default_payment_term?: string
+          metadata?: Json
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_esid_profiles_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: true
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_esid_profiles_default_agent_party_id_fkey"
+            columns: ["default_agent_party_id"]
+            isOneToOne: false
+            referencedRelation: "parties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_esid_profiles_default_notify_party_id_fkey"
+            columns: ["default_notify_party_id"]
+            isOneToOne: false
+            referencedRelation: "parties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_esid_profiles_default_origin_id_fkey"
+            columns: ["default_origin_id"]
+            isOneToOne: false
+            referencedRelation: "destinations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       destinations: {
         Row: {
           city_name: string | null
@@ -506,6 +586,7 @@ export type Database = {
           country_code: string | null
           created_at: string
           email: string | null
+          fax: string | null
           id: string
           metadata: Json
           name: string
@@ -524,6 +605,7 @@ export type Database = {
           country_code?: string | null
           created_at?: string
           email?: string | null
+          fax?: string | null
           id?: string
           metadata?: Json
           name: string
@@ -542,6 +624,7 @@ export type Database = {
           country_code?: string | null
           created_at?: string
           email?: string | null
+          fax?: string | null
           id?: string
           metadata?: Json
           name?: string
@@ -637,7 +720,7 @@ export type Database = {
     Enums: {
       app_role: "ADMIN" | "OPERATOR" | "VIEWER" | "INTEGRATION"
       customer_type: "FORWARDER" | "DIRECT_SHIPPER" | "AGENT" | "OTHER"
-      party_role: "SHIPPER" | "CONSIGNEE"
+      party_role: "SHIPPER" | "CONSIGNEE" | "AGENT" | "NOTIFY"
       record_status: "ACTIVE" | "INACTIVE" | "ARCHIVED"
     }
     CompositeTypes: {
@@ -768,7 +851,7 @@ export const Constants = {
     Enums: {
       app_role: ["ADMIN", "OPERATOR", "VIEWER", "INTEGRATION"],
       customer_type: ["FORWARDER", "DIRECT_SHIPPER", "AGENT", "OTHER"],
-      party_role: ["SHIPPER", "CONSIGNEE"],
+      party_role: ["SHIPPER", "CONSIGNEE", "AGENT", "NOTIFY"],
       record_status: ["ACTIVE", "INACTIVE", "ARCHIVED"],
     },
   },

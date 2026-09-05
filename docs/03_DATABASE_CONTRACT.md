@@ -53,7 +53,9 @@ audit_logs (standalone)
 | code | text | UNIQUE, nullable |
 | name | text | NOT NULL |
 | tax_code, address, city, state, postal_code, country_code | text | nullable |
+| branch_name, contact_person, contact_phone, country_name | text | nullable (Logistics operations) |
 | phone, fax, email | text | nullable |
+| handling_instructions | text | nullable (Chỉ dẫn kho bãi / xếp dỡ) |
 | status | record_status | NOT NULL |
 | notes | text | nullable |
 | metadata | jsonb | NOT NULL |
@@ -69,6 +71,8 @@ audit_logs (standalone)
 | party_id | uuid | FK → parties |
 | role | party_role | SHIPPER \| CONSIGNEE \| AGENT \| NOTIFY |
 | destination_id | uuid | FK → destinations, nullable (Consignee) |
+| account_number | text | nullable (Mã tài khoản khách/đại lý) |
+| notes | text | nullable (Ghi chú tuyến/điều phối riêng) |
 | is_default | boolean | default false |
 | status | record_status | NOT NULL |
 
@@ -96,9 +100,14 @@ Xem ADR-006.
 | id | uuid | PK |
 | code | text | UNIQUE, nullable |
 | name | text | NOT NULL |
-| english_name | text | nullable |
+| english_name | text | nullable (Nature of Goods ESID) |
 | hs_code | text | nullable |
 | category | text | nullable |
+| cargo_type | text | NOT NULL, default 'GENERAL' |
+| special_handling_codes | text[] | NOT NULL, default '{}' (IATA SHC: PER, COL, ELI...) |
+| temperature_range | text | nullable (Bảo quản) |
+| un_number, dg_class | text | nullable (Hàng nguy hiểm IATA DGR) |
+| default_packaging | text | NOT NULL, default 'CARTON' |
 | is_dg, contains_battery, is_liquid | boolean | default false |
 | status | record_status | NOT NULL |
 | notes, metadata | | |
@@ -109,7 +118,9 @@ Xem ADR-006.
 |---|---|---|
 | customer_id | uuid | FK |
 | commodity_id | uuid | FK |
-| custom_description | text | nullable |
+| custom_description | text | nullable (Tên hàng đặc thù khi khai báo) |
+| package_type | text | nullable (Quy cách đóng gói riêng) |
+| special_instructions | text | nullable (Chỉ dẫn khai báo / kho riêng) |
 | is_default | boolean | |
 | usage_count | bigint | default 0 |
 | last_used_at | timestamptz | nullable |

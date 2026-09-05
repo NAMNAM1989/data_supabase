@@ -12,6 +12,7 @@ import {
   restoreParty,
   updateParty,
 } from "@/lib/master-data/parties";
+import { hardDeleteByIds } from "@/lib/master-data/hard-delete";
 import { createClient } from "@/lib/supabase/server";
 import { partySchema, partyUpdateSchema } from "@/lib/validation/party";
 import type { Json } from "@/types/database";
@@ -28,6 +29,14 @@ async function requireArchive() {
   const session = await getSession();
   if (!session?.profile || !canPerform(session.profile.role, "archive")) {
     throw new AppError("PERMISSION", "Bạn không có quyền archive/restore");
+  }
+  return session;
+}
+
+async function requireDelete() {
+  const session = await getSession();
+  if (!session?.profile || !canPerform(session.profile.role, "delete")) {
+    throw new AppError("PERMISSION", "Bạn không có quyền xóa");
   }
   return session;
 }
@@ -125,6 +134,30 @@ export async function restorePartyAction(id: string) {
   } catch (error) {
     return {
       error: error instanceof AppError ? error.message : "Không thể restore party",
+    };
+  }
+}
+
+export async function deletePartiesAction(ids: string[]) {
+  const session = await requireDelete();
+  const supabase = await createClient();
+  try {
+    const rows = await hardDeleteByIds(supabase, "parties", ids);
+    for (const row of rows) {
+      await writeAuditLog(supabase, {
+        actorUserId: session.userId,
+        action: "DELETE",
+        tableName: "parties",
+        recordId: row.id,
+        oldData: row as unknown as Json,
+      });
+      revalidatePath(`/parties/${row.id}`);
+    }
+    revalidatePath("/parties");
+    return { data: { deleted: rows.length } };
+  } catch (error) {
+    return {
+      error: error instanceof AppError ? error.message : "Không thể xóa party",
     };
   }
 }

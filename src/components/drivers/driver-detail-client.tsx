@@ -2,19 +2,21 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Plus, Star, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
-  archiveDriverAction,
   assignVehicleAction,
-  restoreDriverAction,
+  deleteDriversAction,
   setPreferredVehicleAction,
   unassignVehicleAction,
   updateDriverAction,
 } from "@/app/(app)/drivers/actions";
 import { useProfile } from "@/components/providers/profile-provider";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { DetailEditHint } from "@/components/shared/edit-row-actions";
+import { EntitySelect } from "@/components/shared/entity-select";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,13 +29,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -50,6 +45,7 @@ import { canPerform, canWrite } from "@/lib/auth/permissions";
 
 export function DriverDetailClient({ driverId }: { driverId: string }) {
   const { role } = useProfile();
+  const router = useRouter();
   const { data: driver, isLoading, refetch } = useDriver(driverId);
   const vehicles = useDriverVehicles(driverId);
   const customers = useDriverCustomers(driverId);
@@ -57,7 +53,7 @@ export function DriverDetailClient({ driverId }: { driverId: string }) {
   const [saving, setSaving] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [vehicleId, setVehicleId] = useState("");
-
+  const [deleteOpen, setDeleteOpen] = useState(false);
   if (isLoading) return <Skeleton className="h-64 w-full" />;
   if (!driver) return <p>Không tìm thấy driver.</p>;
 
@@ -83,16 +79,14 @@ export function DriverDetailClient({ driverId }: { driverId: string }) {
     }
   }
 
-  async function handleArchive() {
-    const result =
-      record.status === "ARCHIVED"
-        ? await restoreDriverAction(driverId)
-        : await archiveDriverAction(driverId);
-    if (result.error) toast.error(result.error);
-    else {
-      toast.success(record.status === "ARCHIVED" ? "Đã restore" : "Đã archive");
-      refetch();
+  async function handleDelete() {
+    const result = await deleteDriversAction([driverId]);
+    if (result.error) {
+      toast.error(result.error);
+      return;
     }
+    toast.success("Đã xóa vĩnh viễn driver");
+    router.push("/drivers");
   }
 
   async function handleAssign() {
@@ -140,15 +134,28 @@ export function DriverDetailClient({ driverId }: { driverId: string }) {
           <h1 className="text-2xl font-semibold">{record.full_name}</h1>
           <StatusBadge status={record.status} />
         </div>
-        {canPerform(role, "archive") ? (
-          <Button variant="outline" onClick={handleArchive}>
-            {record.status === "ARCHIVED" ? "Restore" : "Archive"}
+        {canPerform(role, "delete") ? (
+          <Button
+            variant="outline"
+            onClick={() => setDeleteOpen(true)}
+            className="text-destructive"
+          >
+            Xóa vĩnh viễn
           </Button>
         ) : null}
       </div>
 
       <DetailEditHint canEdit={canWrite(role)} />
 
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={`Xóa vĩnh viễn tài xế "${record.full_name}"`}
+        description="Thao tác này xóa hẳn khỏi hệ thống, không thể khôi phục. Quan hệ xe/khách hàng liên quan cũng bị xóa."
+        confirmLabel="Xóa vĩnh viễn"
+        variant="destructive"
+        onConfirm={handleDelete}
+      />
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Thông tin Driver</CardTitle>
@@ -219,18 +226,15 @@ export function DriverDetailClient({ driverId }: { driverId: string }) {
                 <div className="flex flex-col gap-3">
                   <div className="flex flex-col gap-2">
                     <Label>Vehicle</Label>
-                    <Select value={vehicleId} onValueChange={(v) => setVehicleId(v ?? "")}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Chọn xe" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(allVehicles.data ?? []).map((v) => (
-                          <SelectItem key={v.id} value={v.id}>
-                            {v.plate_display ?? v.plate_number}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <EntitySelect
+                      value={vehicleId}
+                      onValueChange={setVehicleId}
+                      placeholder="Chọn xe"
+                      options={(allVehicles.data ?? []).map((v) => ({
+                        value: v.id,
+                        label: v.plate_display ?? v.plate_number,
+                      }))}
+                    />
                   </div>
                   <Button onClick={handleAssign} disabled={saving}>
                     {saving ? "Đang lưu..." : "Gán"}

@@ -81,6 +81,8 @@ export async function linkCustomerParty(
     party_id: string;
     role: "SHIPPER" | "CONSIGNEE" | "AGENT" | "NOTIFY";
     destination_id?: string | null;
+    account_number?: string | null;
+    notes?: string | null;
     is_default?: boolean;
   },
 ) {
@@ -91,6 +93,8 @@ export async function linkCustomerParty(
       party_id: input.party_id,
       role: input.role,
       destination_id: input.destination_id ?? null,
+      account_number: input.account_number ?? null,
+      notes: input.notes ?? null,
       is_default: input.is_default ?? false,
       status: "ACTIVE",
     })
@@ -147,6 +151,8 @@ export async function linkCustomerCommodity(
     commodity_id: string;
     is_default?: boolean;
     custom_description?: string | null;
+    package_type?: string | null;
+    special_instructions?: string | null;
   },
 ) {
   const { data, error } = await supabase
@@ -156,6 +162,8 @@ export async function linkCustomerCommodity(
       commodity_id: input.commodity_id,
       is_default: input.is_default ?? false,
       custom_description: input.custom_description ?? null,
+      package_type: input.package_type ?? null,
+      special_instructions: input.special_instructions ?? null,
       status: "ACTIVE",
     })
     .select()
@@ -333,6 +341,8 @@ export async function updateCustomerParty(
   input: {
     party_id?: string;
     destination_id?: string | null;
+    account_number?: string | null;
+    notes?: string | null;
     is_default?: boolean;
   },
 ) {
@@ -374,10 +384,14 @@ export async function updateCustomerParty(
   const patch: {
     party_id?: string;
     destination_id?: string | null;
+    account_number?: string | null;
+    notes?: string | null;
     is_default?: boolean;
   } = {};
   if (input.party_id !== undefined) patch.party_id = input.party_id;
   if (input.destination_id !== undefined) patch.destination_id = input.destination_id;
+  if (input.account_number !== undefined) patch.account_number = input.account_number;
+  if (input.notes !== undefined) patch.notes = input.notes;
   if (input.is_default !== undefined) patch.is_default = input.is_default;
 
   const { data, error } = await supabase
@@ -397,6 +411,8 @@ export async function updateCustomerCommodity(
   input: {
     commodity_id?: string;
     custom_description?: string | null;
+    package_type?: string | null;
+    special_instructions?: string | null;
     is_default?: boolean;
   },
 ) {
@@ -436,11 +452,17 @@ export async function updateCustomerCommodity(
   const patch: {
     commodity_id?: string;
     custom_description?: string | null;
+    package_type?: string | null;
+    special_instructions?: string | null;
     is_default?: boolean;
   } = {};
   if (input.commodity_id !== undefined) patch.commodity_id = input.commodity_id;
   if (input.custom_description !== undefined) {
     patch.custom_description = input.custom_description;
+  }
+  if (input.package_type !== undefined) patch.package_type = input.package_type;
+  if (input.special_instructions !== undefined) {
+    patch.special_instructions = input.special_instructions;
   }
   if (input.is_default !== undefined) patch.is_default = input.is_default;
 

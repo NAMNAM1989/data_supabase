@@ -8,9 +8,11 @@ describe("permissions", () => {
     expect(canPerform("ADMIN", "merge_duplicates")).toBe(true);
   });
 
-  it("restricts operator", () => {
+  it("allows operator to archive and hard-delete mistaken entries", () => {
     expect(canWrite("OPERATOR")).toBe(true);
-    expect(canPerform("OPERATOR", "archive")).toBe(false);
+    expect(canPerform("OPERATOR", "archive")).toBe(true);
+    expect(canPerform("OPERATOR", "restore")).toBe(true);
+    expect(canPerform("OPERATOR", "delete")).toBe(true);
     expect(canPerform("OPERATOR", "manage_users")).toBe(false);
   });
 

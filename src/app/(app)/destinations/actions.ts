@@ -12,6 +12,7 @@ import {
   restoreDestination,
   updateDestination,
 } from "@/lib/master-data/destinations";
+import { hardDeleteByIds } from "@/lib/master-data/hard-delete";
 import { createClient } from "@/lib/supabase/server";
 import { destinationSchema, destinationUpdateSchema } from "@/lib/validation/destination";
 import type { Json } from "@/types/database";
@@ -28,6 +29,14 @@ async function requireArchive() {
   const session = await getSession();
   if (!session?.profile || !canPerform(session.profile.role, "archive")) {
     throw new AppError("PERMISSION", "Bạn không có quyền archive/restore");
+  }
+  return session;
+}
+
+async function requireDelete() {
+  const session = await getSession();
+  if (!session?.profile || !canPerform(session.profile.role, "delete")) {
+    throw new AppError("PERMISSION", "Bạn không có quyền xóa");
   }
   return session;
 }
@@ -122,6 +131,29 @@ export async function restoreDestinationAction(id: string) {
   } catch (error) {
     return {
       error: error instanceof AppError ? error.message : "Không thể restore destination",
+    };
+  }
+}
+
+export async function deleteDestinationsAction(ids: string[]) {
+  const session = await requireDelete();
+  const supabase = await createClient();
+  try {
+    const rows = await hardDeleteByIds(supabase, "destinations", ids);
+    for (const row of rows) {
+      await writeAuditLog(supabase, {
+        actorUserId: session.userId,
+        action: "DELETE",
+        tableName: "destinations",
+        recordId: row.id,
+        oldData: row as unknown as Json,
+      });
+    }
+    revalidatePath("/destinations");
+    return { data: { deleted: rows.length } };
+  } catch (error) {
+    return {
+      error: error instanceof AppError ? error.message : "Không thể xóa destination",
     };
   }
 }

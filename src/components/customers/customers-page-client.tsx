@@ -1,16 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
-  archiveCustomerAction,
   createCustomerAction,
-  restoreCustomerAction,
+  deleteCustomersAction,
 } from "@/app/(app)/customers/actions";
 import { useProfile } from "@/components/providers/profile-provider";
+import { BulkDeleteBar, RowCheckbox } from "@/components/shared/bulk-delete-bar";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EditRowLink, WriteAccessHint } from "@/components/shared/edit-row-actions";
 import { IconActionButton } from "@/components/shared/icon-action-button";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -42,6 +43,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useCustomers } from "@/hooks/use-customers";
+import { useRowSelection } from "@/hooks/use-row-selection";
 import { useSubmitLock } from "@/hooks/use-submit-lock";
 import { canPerform, canWrite } from "@/lib/auth/permissions";
 import { formString, formValue } from "@/lib/form";
@@ -54,6 +56,8 @@ export function CustomersPageClient() {
   const [status, setStatus] = useState<string>("ALL");
   const [type, setType] = useState<string>("ALL");
   const [open, setOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<CustomerListItem | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const { saving, runLocked } = useSubmitLock();
 
   const { data, isLoading, refetch } = useCustomers({
@@ -62,22 +66,29 @@ export function CustomersPageClient() {
     customerType: type === "ALL" ? undefined : type,
   });
 
-  async function handleArchive(customer: CustomerListItem) {
-    if (customer.status === "ARCHIVED") {
-      const result = await restoreCustomerAction(customer.id);
-      if (result.error) toast.error(result.error);
-      else {
-        toast.success("Đã khôi phục customer");
-        refetch();
-      }
-      return;
-    }
+  const canDelete = canPerform(role, "delete");
+  const rowIds = useMemo(() => (data ?? []).map((c) => c.id), [data]);
+  const selection = useRowSelection(rowIds);
+  const colSpan = (canDelete ? 1 : 0) + 7 + (canWrite(role) ? 1 : 0);
 
-    if (!confirm(`Xóa customer "${customer.code} — ${customer.name}" khỏi danh sách?`)) return;
-    const result = await archiveCustomerAction(customer.id);
+  async function executeDelete() {
+    if (!deleteTarget) return;
+    const result = await deleteCustomersAction([deleteTarget.id]);
     if (result.error) toast.error(result.error);
     else {
-      toast.success("Đã xóa customer khỏi danh sách");
+      toast.success("Đã xóa vĩnh viễn customer");
+      selection.clear();
+      refetch();
+    }
+  }
+
+  async function executeBulkDelete() {
+    if (selection.selectedCount === 0) return;
+    const result = await deleteCustomersAction(selection.selectedIds);
+    if (result.error) toast.error(result.error);
+    else {
+      toast.success(`Đã xóa vĩnh viễn ${result.data?.deleted ?? selection.selectedCount} customer`);
+      selection.clear();
       refetch();
     }
   }
@@ -121,7 +132,7 @@ export function CustomersPageClient() {
               <Plus />
               Add Customer
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="sm:max-w-lg">
               <DialogHeader>
                 <DialogTitle>Tạo Customer mới</DialogTitle>
               </DialogHeader>
@@ -221,10 +232,29 @@ export function CustomersPageClient() {
         </Select>
       </div>
 
+      {canDelete ? (
+        <BulkDeleteBar
+          selectedCount={selection.selectedCount}
+          onClear={selection.clear}
+          onDelete={() => setBulkOpen(true)}
+          entityLabel="customer"
+        />
+      ) : null}
+
       <div className="rounded-xl border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
+              {canDelete ? (
+                <TableHead className="w-10">
+                  <RowCheckbox
+                    checked={selection.allSelected}
+                    indeterminate={selection.someSelected}
+                    onChange={selection.toggleAll}
+                    label="Chọn tất cả customer"
+                  />
+                </TableHead>
+              ) : null}
               <TableHead>Code</TableHead>
               <TableHead>Customer</TableHead>
               <TableHead>Type</TableHead>
@@ -237,10 +267,23 @@ export function CustomersPageClient() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableLoadingRows colSpan={canWrite(role) ? 8 : 7} />
+              <TableLoadingRows colSpan={colSpan} />
             ) : data?.length ? (
               data.map((customer) => (
-                <TableRow key={customer.id} className="cursor-pointer">
+                <TableRow
+                  key={customer.id}
+                  className="cursor-pointer"
+                  data-state={selection.isSelected(customer.id) ? "selected" : undefined}
+                >
+                  {canDelete ? (
+                    <TableCell>
+                      <RowCheckbox
+                        checked={selection.isSelected(customer.id)}
+                        onChange={() => selection.toggle(customer.id)}
+                        label={`Chọn customer ${customer.code}`}
+                      />
+                    </TableCell>
+                  ) : null}
                   <TableCell className="font-mono font-medium">
                     <Link href={`/customers/${customer.id}`} className="hover:underline">
                       {customer.code}
@@ -267,26 +310,16 @@ export function CustomersPageClient() {
                           href={`/customers/${customer.id}`}
                           label={`customer ${customer.code}`}
                         />
-                        {canPerform(role, "archive") ? (
-                          customer.status === "ARCHIVED" ? (
-                            <IconActionButton
-                              label={`Khôi phục customer ${customer.code}`}
-                              tooltip="Khôi phục"
-                              onClick={() => handleArchive(customer)}
-                            >
-                              <RotateCcw />
-                            </IconActionButton>
-                          ) : (
-                            <IconActionButton
-                              label={`Xóa customer ${customer.code}`}
-                              tooltip="Xóa"
-                              variant="ghost"
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => handleArchive(customer)}
-                            >
-                              <Trash2 />
-                            </IconActionButton>
-                          )
+                        {canDelete ? (
+                          <IconActionButton
+                            label={`Xóa customer ${customer.code}`}
+                            tooltip="Xóa vĩnh viễn"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setDeleteTarget(customer)}
+                          >
+                            <Trash2 />
+                          </IconActionButton>
                         ) : null}
                       </div>
                     </TableCell>
@@ -295,10 +328,7 @@ export function CustomersPageClient() {
               ))
             ) : (
               <TableRow>
-                <TableCell
-                  colSpan={canWrite(role) ? 8 : 7}
-                  className="h-24 text-center text-muted-foreground"
-                >
+                <TableCell colSpan={colSpan} className="h-24 text-center text-muted-foreground">
                   Chưa có customer
                 </TableCell>
               </TableRow>
@@ -306,6 +336,26 @@ export function CustomersPageClient() {
           </TableBody>
         </Table>
       </div>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(v) => !v && setDeleteTarget(null)}
+        title={`Xóa vĩnh viễn customer "${deleteTarget?.code} — ${deleteTarget?.name}"`}
+        description="Thao tác này xóa hẳn khỏi hệ thống, không thể khôi phục. Quan hệ party/hàng hóa/xe liên quan cũng bị xóa."
+        confirmLabel="Xóa vĩnh viễn"
+        variant="destructive"
+        onConfirm={executeDelete}
+      />
+
+      <ConfirmDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        title={`Xóa vĩnh viễn ${selection.selectedCount} customer`}
+        description="Thao tác này xóa hẳn các bản ghi đã chọn, không thể khôi phục."
+        confirmLabel="Xóa vĩnh viễn"
+        variant="destructive"
+        onConfirm={executeBulkDelete}
+      />
 
       {!canPerform(role, "read") ? (
         <p className="text-sm text-destructive">Bạn không có quyền xem dữ liệu.</p>

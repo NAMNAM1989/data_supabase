@@ -245,14 +245,19 @@ export async function commitImportAction(input: unknown) {
           name: row.data.name,
           code: row.data.code,
           tax_code: row.data.tax_code,
+          branch_name: row.data.branch_name ?? "",
+          contact_person: row.data.contact_person ?? "",
+          contact_phone: row.data.contact_phone ?? "",
           address: row.data.address,
           city: "",
           state: "",
           postal_code: "",
           country_code: "",
+          country_name: "",
           phone: row.data.phone,
           fax: row.data.fax ?? "",
           email: row.data.email,
+          handling_instructions: row.data.handling_instructions ?? "",
           status: "ACTIVE" as const,
           notes: "",
         };
@@ -378,11 +383,19 @@ export async function commitImportAction(input: unknown) {
           code: row.data.code,
           english_name: row.data.english_name,
           category: row.data.category,
+          cargo_type: (row.data.cargo_type as any) || "GENERAL",
+          special_handling_codes: row.data.special_handling_codes
+            ? String(row.data.special_handling_codes).split(/[\s,]+/).filter(Boolean)
+            : [],
+          temperature_range: row.data.temperature_range ?? "",
+          un_number: row.data.un_number ?? "",
+          dg_class: row.data.dg_class ?? "",
+          default_packaging: (row.data.default_packaging as any) || "CARTON",
           notes: row.data.notes,
           status: "ACTIVE" as const,
-          is_dg: false,
-          contains_battery: false,
-          is_liquid: false,
+          is_dg: Boolean(row.data.is_dg),
+          contains_battery: Boolean(row.data.contains_battery),
+          is_liquid: Boolean(row.data.is_liquid),
         };
 
         if (row.action === "update" && row.matchId) {

@@ -13,6 +13,7 @@ import {
   restoreVehicle,
   updateVehicle,
 } from "@/lib/master-data/vehicles";
+import { hardDeleteByIds } from "@/lib/master-data/hard-delete";
 import { createClient } from "@/lib/supabase/server";
 import { assignDriverVehicleSchema } from "@/lib/validation/transport-relations";
 import { vehicleSchema, vehicleUpdateSchema } from "@/lib/validation/vehicle";
@@ -30,6 +31,14 @@ async function requireArchive() {
   const session = await getSession();
   if (!session?.profile || !canPerform(session.profile.role, "archive")) {
     throw new AppError("PERMISSION", "Bạn không có quyền archive/restore");
+  }
+  return session;
+}
+
+async function requireDelete() {
+  const session = await getSession();
+  if (!session?.profile || !canPerform(session.profile.role, "delete")) {
+    throw new AppError("PERMISSION", "Bạn không có quyền xóa");
   }
   return session;
 }
@@ -127,6 +136,30 @@ export async function restoreVehicleAction(id: string) {
   } catch (error) {
     return {
       error: error instanceof AppError ? error.message : "Không thể restore vehicle",
+    };
+  }
+}
+
+export async function deleteVehiclesAction(ids: string[]) {
+  const session = await requireDelete();
+  const supabase = await createClient();
+  try {
+    const rows = await hardDeleteByIds(supabase, "vehicles", ids);
+    for (const row of rows) {
+      await writeAuditLog(supabase, {
+        actorUserId: session.userId,
+        action: "DELETE",
+        tableName: "vehicles",
+        recordId: row.id,
+        oldData: row as unknown as Json,
+      });
+      revalidatePath(`/vehicles/${row.id}`);
+    }
+    revalidatePath("/vehicles");
+    return { data: { deleted: rows.length } };
+  } catch (error) {
+    return {
+      error: error instanceof AppError ? error.message : "Không thể xóa vehicle",
     };
   }
 }

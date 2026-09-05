@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { createDriverAction } from "@/app/(app)/drivers/actions";
+import { createDriverAction, deleteDriversAction } from "@/app/(app)/drivers/actions";
 import { useProfile } from "@/components/providers/profile-provider";
+import { BulkDeleteBar, RowCheckbox } from "@/components/shared/bulk-delete-bar";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EditRowLink, WriteAccessHint } from "@/components/shared/edit-row-actions";
+import { IconActionButton } from "@/components/shared/icon-action-button";
 import { TableLoadingRows } from "@/components/shared/table-states";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
@@ -29,15 +32,45 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useDrivers } from "@/hooks/use-drivers";
+import { useRowSelection } from "@/hooks/use-row-selection";
 import { useSubmitLock } from "@/hooks/use-submit-lock";
-import { canWrite } from "@/lib/auth/permissions";
+import { canPerform, canWrite } from "@/lib/auth/permissions";
+import type { DriverWithCounts } from "@/lib/master-data/drivers";
 
 export function DriversPageClient() {
   const { role } = useProfile();
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<DriverWithCounts | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const { saving, runLocked } = useSubmitLock();
   const { data, isLoading, refetch } = useDrivers({ search: search || undefined });
+  const showActions = canWrite(role);
+  const canDelete = canPerform(role, "delete");
+  const rowIds = useMemo(() => (data ?? []).map((d) => d.id), [data]);
+  const selection = useRowSelection(rowIds);
+
+  async function executeDelete() {
+    if (!deleteTarget) return;
+    const result = await deleteDriversAction([deleteTarget.id]);
+    if (result.error) toast.error(result.error);
+    else {
+      toast.success("Đã xóa vĩnh viễn driver");
+      selection.clear();
+      refetch();
+    }
+  }
+
+  async function executeBulkDelete() {
+    if (selection.selectedCount === 0) return;
+    const result = await deleteDriversAction(selection.selectedIds);
+    if (result.error) toast.error(result.error);
+    else {
+      toast.success(`Đã xóa vĩnh viễn ${result.data?.deleted ?? selection.selectedCount} driver`);
+      selection.clear();
+      refetch();
+    }
+  }
 
   async function handleCreate(formData: FormData) {
     await runLocked(async () => {
@@ -58,6 +91,8 @@ export function DriversPageClient() {
       refetch();
     });
   }
+
+  const colSpan = (canDelete ? 1 : 0) + 6 + (showActions ? 1 : 0);
 
   return (
     <div className="flex flex-col gap-4">
@@ -115,25 +150,53 @@ export function DriversPageClient() {
         className="max-w-sm"
       />
 
+      {canDelete ? (
+        <BulkDeleteBar
+          selectedCount={selection.selectedCount}
+          onClear={selection.clear}
+          onDelete={() => setBulkOpen(true)}
+          entityLabel="driver"
+        />
+      ) : null}
+
       <div className="rounded-xl border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
+              {canDelete ? (
+                <TableHead className="w-10">
+                  <RowCheckbox
+                    checked={selection.allSelected}
+                    indeterminate={selection.someSelected}
+                    onChange={selection.toggleAll}
+                    label="Chọn tất cả driver"
+                  />
+                </TableHead>
+              ) : null}
               <TableHead>Name</TableHead>
               <TableHead>Code</TableHead>
               <TableHead>Phone</TableHead>
               <TableHead>Vehicles</TableHead>
               <TableHead>Customers</TableHead>
               <TableHead>Status</TableHead>
-              {canWrite(role) ? <TableHead className="w-24">Thao tác</TableHead> : null}
+              {showActions ? <TableHead className="w-36">Thao tác</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableLoadingRows colSpan={canWrite(role) ? 7 : 6} />
+              <TableLoadingRows colSpan={colSpan} />
             ) : data?.length ? (
               data.map((driver) => (
-                <TableRow key={driver.id}>
+                <TableRow key={driver.id} data-state={selection.isSelected(driver.id) ? "selected" : undefined}>
+                  {canDelete ? (
+                    <TableCell>
+                      <RowCheckbox
+                        checked={selection.isSelected(driver.id)}
+                        onChange={() => selection.toggle(driver.id)}
+                        label={`Chọn driver ${driver.full_name}`}
+                      />
+                    </TableCell>
+                  ) : null}
                   <TableCell>
                     <Link href={`/drivers/${driver.id}`} className="font-medium hover:underline">
                       {driver.full_name}
@@ -146,19 +209,32 @@ export function DriversPageClient() {
                   <TableCell>
                     <StatusBadge status={driver.status} />
                   </TableCell>
-                  {canWrite(role) ? (
+                  {showActions ? (
                     <TableCell>
-                      <EditRowLink href={`/drivers/${driver.id}`} label={`driver ${driver.full_name}`} />
+                      <div className="flex flex-wrap gap-1">
+                        <EditRowLink
+                          href={`/drivers/${driver.id}`}
+                          label={`driver ${driver.full_name}`}
+                        />
+                        {canDelete ? (
+                          <IconActionButton
+                            label={`Xóa driver ${driver.full_name}`}
+                            tooltip="Xóa vĩnh viễn"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setDeleteTarget(driver)}
+                          >
+                            <Trash2 />
+                          </IconActionButton>
+                        ) : null}
+                      </div>
                     </TableCell>
                   ) : null}
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell
-                  colSpan={canWrite(role) ? 7 : 6}
-                  className="text-center text-muted-foreground"
-                >
+                <TableCell colSpan={colSpan} className="text-center text-muted-foreground">
                   Chưa có driver
                 </TableCell>
               </TableRow>
@@ -166,6 +242,26 @@ export function DriversPageClient() {
           </TableBody>
         </Table>
       </div>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(v) => !v && setDeleteTarget(null)}
+        title={`Xóa vĩnh viễn tài xế "${deleteTarget?.full_name}"`}
+        description="Thao tác này xóa hẳn khỏi hệ thống, không thể khôi phục. Quan hệ xe/khách hàng liên quan cũng bị xóa."
+        confirmLabel="Xóa vĩnh viễn"
+        variant="destructive"
+        onConfirm={executeDelete}
+      />
+
+      <ConfirmDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        title={`Xóa vĩnh viễn ${selection.selectedCount} driver`}
+        description="Thao tác này xóa hẳn các bản ghi đã chọn, không thể khôi phục."
+        confirmLabel="Xóa vĩnh viễn"
+        variant="destructive"
+        onConfirm={executeBulkDelete}
+      />
     </div>
   );
 }

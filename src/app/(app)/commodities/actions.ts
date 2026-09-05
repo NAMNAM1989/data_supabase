@@ -13,6 +13,7 @@ import {
   restoreCommodity,
   updateCommodity,
 } from "@/lib/master-data/commodities";
+import { hardDeleteByIds } from "@/lib/master-data/hard-delete";
 import { createClient } from "@/lib/supabase/server";
 import { commoditySchema, commodityUpdateSchema } from "@/lib/validation/commodity";
 import type { Json } from "@/types/database";
@@ -29,6 +30,14 @@ async function requireArchive() {
   const session = await getSession();
   if (!session?.profile || !canPerform(session.profile.role, "archive")) {
     throw new AppError("PERMISSION", "Bạn không có quyền xóa/khôi phục");
+  }
+  return session;
+}
+
+async function requireDelete() {
+  const session = await getSession();
+  if (!session?.profile || !canPerform(session.profile.role, "delete")) {
+    throw new AppError("PERMISSION", "Bạn không có quyền xóa");
   }
   return session;
 }
@@ -129,6 +138,29 @@ export async function restoreCommodityAction(id: string) {
   } catch (error) {
     return {
       error: error instanceof AppError ? error.message : "Không thể khôi phục commodity",
+    };
+  }
+}
+
+export async function deleteCommoditiesAction(ids: string[]) {
+  const session = await requireDelete();
+  const supabase = await createClient();
+  try {
+    const rows = await hardDeleteByIds(supabase, "commodities", ids);
+    for (const row of rows) {
+      await writeAuditLog(supabase, {
+        actorUserId: session.userId,
+        action: "DELETE",
+        tableName: "commodities",
+        recordId: row.id,
+        oldData: row as unknown as Json,
+      });
+    }
+    revalidatePath("/commodities");
+    return { data: { deleted: rows.length } };
+  } catch (error) {
+    return {
+      error: error instanceof AppError ? error.message : "Không thể xóa commodity",
     };
   }
 }

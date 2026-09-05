@@ -2,16 +2,17 @@
 
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
-  archiveDestinationAction,
   createDestinationAction,
-  restoreDestinationAction,
+  deleteDestinationsAction,
   updateDestinationAction,
 } from "@/app/(app)/destinations/actions";
 import { useProfile } from "@/components/providers/profile-provider";
+import { BulkDeleteBar, RowCheckbox } from "@/components/shared/bulk-delete-bar";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EditRowButton, WriteAccessHint } from "@/components/shared/edit-row-actions";
 import { IconActionButton } from "@/components/shared/icon-action-button";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -42,6 +43,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useDestinations } from "@/hooks/use-destinations";
+import { useRowSelection } from "@/hooks/use-row-selection";
 import { useSubmitLock } from "@/hooks/use-submit-lock";
 import { canPerform, canWrite } from "@/lib/auth/permissions";
 import { formString } from "@/lib/form";
@@ -58,10 +60,16 @@ export function DestinationsPageClient() {
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [manualEdit, setManualEdit] = useState<DestinationRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DestinationRow | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const { saving, runLocked } = useSubmitLock();
   const { data, isLoading, isError, refetch } = useDestinations({
     search: search || undefined,
   });
+  const showActions = canWrite(role);
+  const canDelete = canPerform(role, "delete");
+  const rowIds = useMemo(() => (data ?? []).map((d) => d.id), [data]);
+  const selection = useRowSelection(rowIds);
 
   const editFromQuery =
     editId && data?.length ? (data.find((item) => item.id === editId) ?? null) : null;
@@ -117,27 +125,29 @@ export function DestinationsPageClient() {
     }
   }
 
-  async function handleArchive(row: DestinationRow) {
-    if (row.status === "ARCHIVED") {
-      const result = await restoreDestinationAction(row.id);
-      if (result.error) toast.error(result.error);
-      else {
-        toast.success("Đã restore");
-        refetch();
-      }
-      return;
-    }
-
-    if (!confirm(`Archive destination "${row.iata_code}"?`)) return;
-    const result = await archiveDestinationAction(row.id);
+  async function executeDelete() {
+    if (!deleteTarget) return;
+    const result = await deleteDestinationsAction([deleteTarget.id]);
     if (result.error) toast.error(result.error);
     else {
-      toast.success("Đã archive");
+      toast.success("Đã xóa vĩnh viễn destination");
+      selection.clear();
       refetch();
     }
   }
 
-  const colSpan = canWrite(role) ? 7 : 6;
+  async function executeBulkDelete() {
+    if (selection.selectedCount === 0) return;
+    const result = await deleteDestinationsAction(selection.selectedIds);
+    if (result.error) toast.error(result.error);
+    else {
+      toast.success(`Đã xóa vĩnh viễn ${result.data?.deleted ?? selection.selectedCount} destination`);
+      selection.clear();
+      refetch();
+    }
+  }
+
+  const colSpan = (canDelete ? 1 : 0) + 6 + (showActions ? 1 : 0);
 
   return (
     <div className="flex flex-col gap-4">
@@ -175,17 +185,36 @@ export function DestinationsPageClient() {
         className="max-w-sm"
       />
 
+      {canDelete ? (
+        <BulkDeleteBar
+          selectedCount={selection.selectedCount}
+          onClear={selection.clear}
+          onDelete={() => setBulkOpen(true)}
+          entityLabel="destination"
+        />
+      ) : null}
+
       <div className="rounded-xl border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
+              {canDelete ? (
+                <TableHead className="w-10">
+                  <RowCheckbox
+                    checked={selection.allSelected}
+                    indeterminate={selection.someSelected}
+                    onChange={selection.toggleAll}
+                    label="Chọn tất cả destination"
+                  />
+                </TableHead>
+              ) : null}
               <TableHead>IATA</TableHead>
               <TableHead>City</TableHead>
               <TableHead>Country</TableHead>
               <TableHead>Region</TableHead>
               <TableHead>Timezone</TableHead>
               <TableHead>Status</TableHead>
-              {canWrite(role) ? <TableHead className="w-36">Thao tác</TableHead> : null}
+              {showActions ? <TableHead className="w-36">Thao tác</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -199,7 +228,17 @@ export function DestinationsPageClient() {
                   key={row.id}
                   className={cn(editId === row.id && "bg-amber-50 dark:bg-amber-950/30")}
                   data-highlight={editId === row.id ? "true" : undefined}
+                  data-state={selection.isSelected(row.id) ? "selected" : undefined}
                 >
+                  {canDelete ? (
+                    <TableCell>
+                      <RowCheckbox
+                        checked={selection.isSelected(row.id)}
+                        onChange={() => selection.toggle(row.id)}
+                        label={`Chọn destination ${row.iata_code}`}
+                      />
+                    </TableCell>
+                  ) : null}
                   <TableCell className="font-mono font-medium">{row.iata_code}</TableCell>
                   <TableCell>{row.city_name ?? "—"}</TableCell>
                   <TableCell>{row.country_name ?? row.country_code ?? "—"}</TableCell>
@@ -208,33 +247,23 @@ export function DestinationsPageClient() {
                   <TableCell>
                     <StatusBadge status={row.status} />
                   </TableCell>
-                  {canWrite(role) ? (
+                  {showActions ? (
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         <EditRowButton
                           label={row.iata_code ?? row.city_name ?? "destination"}
                           onClick={() => setManualEdit(row)}
                         />
-                        {canPerform(role, "archive") ? (
-                          row.status === "ARCHIVED" ? (
-                            <IconActionButton
-                              label={`Restore destination ${row.iata_code}`}
-                              tooltip="Restore destination"
-                              onClick={() => handleArchive(row)}
-                            >
-                              <RotateCcw />
-                            </IconActionButton>
-                          ) : (
-                            <IconActionButton
-                              label={`Archive destination ${row.iata_code}`}
-                              tooltip="Archive destination"
-                              variant="ghost"
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => handleArchive(row)}
-                            >
-                              <Trash2 />
-                            </IconActionButton>
-                          )
+                        {canDelete ? (
+                          <IconActionButton
+                            label={`Xóa destination ${row.iata_code}`}
+                            tooltip="Xóa vĩnh viễn"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setDeleteTarget(row)}
+                          >
+                            <Trash2 />
+                          </IconActionButton>
                         ) : null}
                       </div>
                     </TableCell>
@@ -269,6 +298,26 @@ export function DestinationsPageClient() {
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(v) => !v && setDeleteTarget(null)}
+        title={`Xóa vĩnh viễn destination "${deleteTarget?.iata_code}"`}
+        description="Thao tác này xóa hẳn khỏi hệ thống, không thể khôi phục."
+        confirmLabel="Xóa vĩnh viễn"
+        variant="destructive"
+        onConfirm={executeDelete}
+      />
+
+      <ConfirmDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        title={`Xóa vĩnh viễn ${selection.selectedCount} destination`}
+        description="Thao tác này xóa hẳn các bản ghi đã chọn, không thể khôi phục."
+        confirmLabel="Xóa vĩnh viễn"
+        variant="destructive"
+        onConfirm={executeBulkDelete}
+      />
     </div>
   );
 }

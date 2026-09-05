@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { createVehicleAction } from "@/app/(app)/vehicles/actions";
+import { createVehicleAction, deleteVehiclesAction } from "@/app/(app)/vehicles/actions";
 import { useProfile } from "@/components/providers/profile-provider";
+import { BulkDeleteBar, RowCheckbox } from "@/components/shared/bulk-delete-bar";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EditRowLink, WriteAccessHint } from "@/components/shared/edit-row-actions";
+import { IconActionButton } from "@/components/shared/icon-action-button";
 import { TableLoadingRows } from "@/components/shared/table-states";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
@@ -28,16 +31,47 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useVehicles } from "@/hooks/use-vehicles";
+import { useRowSelection } from "@/hooks/use-row-selection";
 import { useSubmitLock } from "@/hooks/use-submit-lock";
-import { canWrite } from "@/lib/auth/permissions";
+import { useVehicles } from "@/hooks/use-vehicles";
+import { canPerform, canWrite } from "@/lib/auth/permissions";
+import type { VehicleWithCounts } from "@/lib/master-data/vehicles";
 
 export function VehiclesPageClient() {
   const { role } = useProfile();
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<VehicleWithCounts | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const { saving, runLocked } = useSubmitLock();
   const { data, isLoading, refetch } = useVehicles({ search: search || undefined });
+  const showActions = canWrite(role);
+  const canDelete = canPerform(role, "delete");
+  const rowIds = useMemo(() => (data ?? []).map((v) => v.id), [data]);
+  const selection = useRowSelection(rowIds);
+  const colSpan = (canDelete ? 1 : 0) + 6 + (showActions ? 1 : 0);
+
+  async function executeDelete() {
+    if (!deleteTarget) return;
+    const result = await deleteVehiclesAction([deleteTarget.id]);
+    if (result.error) toast.error(result.error);
+    else {
+      toast.success("Đã xóa vĩnh viễn vehicle");
+      selection.clear();
+      refetch();
+    }
+  }
+
+  async function executeBulkDelete() {
+    if (selection.selectedCount === 0) return;
+    const result = await deleteVehiclesAction(selection.selectedIds);
+    if (result.error) toast.error(result.error);
+    else {
+      toast.success(`Đã xóa vĩnh viễn ${result.data?.deleted ?? selection.selectedCount} vehicle`);
+      selection.clear();
+      refetch();
+    }
+  }
 
   async function handleCreate(formData: FormData) {
     await runLocked(async () => {
@@ -115,25 +149,56 @@ export function VehiclesPageClient() {
         className="max-w-sm"
       />
 
+      {canDelete ? (
+        <BulkDeleteBar
+          selectedCount={selection.selectedCount}
+          onClear={selection.clear}
+          onDelete={() => setBulkOpen(true)}
+          entityLabel="vehicle"
+        />
+      ) : null}
+
       <div className="rounded-xl border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
+              {canDelete ? (
+                <TableHead className="w-10">
+                  <RowCheckbox
+                    checked={selection.allSelected}
+                    indeterminate={selection.someSelected}
+                    onChange={selection.toggleAll}
+                    label="Chọn tất cả vehicle"
+                  />
+                </TableHead>
+              ) : null}
               <TableHead>Plate</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Brand / Model</TableHead>
               <TableHead>Drivers</TableHead>
               <TableHead>Customers</TableHead>
               <TableHead>Status</TableHead>
-              {canWrite(role) ? <TableHead className="w-24">Thao tác</TableHead> : null}
+              {showActions ? <TableHead className="w-36">Thao tác</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableLoadingRows colSpan={canWrite(role) ? 7 : 6} />
+              <TableLoadingRows colSpan={colSpan} />
             ) : data?.length ? (
               data.map((vehicle) => (
-                <TableRow key={vehicle.id}>
+                <TableRow
+                  key={vehicle.id}
+                  data-state={selection.isSelected(vehicle.id) ? "selected" : undefined}
+                >
+                  {canDelete ? (
+                    <TableCell>
+                      <RowCheckbox
+                        checked={selection.isSelected(vehicle.id)}
+                        onChange={() => selection.toggle(vehicle.id)}
+                        label={`Chọn vehicle ${vehicle.plate_display ?? vehicle.plate_number}`}
+                      />
+                    </TableCell>
+                  ) : null}
                   <TableCell>
                     <Link href={`/vehicles/${vehicle.id}`} className="font-medium hover:underline">
                       {vehicle.plate_display ?? vehicle.plate_number}
@@ -148,22 +213,32 @@ export function VehiclesPageClient() {
                   <TableCell>
                     <StatusBadge status={vehicle.status} />
                   </TableCell>
-                  {canWrite(role) ? (
+                  {showActions ? (
                     <TableCell>
-                      <EditRowLink
-                        href={`/vehicles/${vehicle.id}`}
-                        label={`vehicle ${vehicle.plate_display ?? vehicle.plate_number}`}
-                      />
+                      <div className="flex flex-wrap gap-1">
+                        <EditRowLink
+                          href={`/vehicles/${vehicle.id}`}
+                          label={`vehicle ${vehicle.plate_display ?? vehicle.plate_number}`}
+                        />
+                        {canDelete ? (
+                          <IconActionButton
+                            label={`Xóa vehicle ${vehicle.plate_display ?? vehicle.plate_number}`}
+                            tooltip="Xóa vĩnh viễn"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setDeleteTarget(vehicle)}
+                          >
+                            <Trash2 />
+                          </IconActionButton>
+                        ) : null}
+                      </div>
                     </TableCell>
                   ) : null}
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell
-                  colSpan={canWrite(role) ? 7 : 6}
-                  className="text-center text-muted-foreground"
-                >
+                <TableCell colSpan={colSpan} className="text-center text-muted-foreground">
                   Chưa có vehicle
                 </TableCell>
               </TableRow>
@@ -171,6 +246,26 @@ export function VehiclesPageClient() {
           </TableBody>
         </Table>
       </div>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(v) => !v && setDeleteTarget(null)}
+        title={`Xóa vĩnh viễn xe "${deleteTarget?.plate_display ?? deleteTarget?.plate_number}"`}
+        description="Thao tác này xóa hẳn khỏi hệ thống, không thể khôi phục. Quan hệ tài xế/khách hàng liên quan cũng bị xóa."
+        confirmLabel="Xóa vĩnh viễn"
+        variant="destructive"
+        onConfirm={executeDelete}
+      />
+
+      <ConfirmDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        title={`Xóa vĩnh viễn ${selection.selectedCount} vehicle`}
+        description="Thao tác này xóa hẳn các bản ghi đã chọn, không thể khôi phục."
+        confirmLabel="Xóa vĩnh viễn"
+        variant="destructive"
+        onConfirm={executeBulkDelete}
+      />
     </div>
   );
 }

@@ -52,10 +52,13 @@ export type Database = {
       }
       commodities: {
         Row: {
+          cargo_type: string
           category: string | null
           code: string | null
           contains_battery: boolean
           created_at: string
+          default_packaging: string
+          dg_class: string | null
           english_name: string | null
           hs_code: string | null
           id: string
@@ -64,14 +67,20 @@ export type Database = {
           metadata: Json
           name: string
           notes: string | null
+          special_handling_codes: string[]
           status: Database["public"]["Enums"]["record_status"]
+          temperature_range: string | null
+          un_number: string | null
           updated_at: string
         }
         Insert: {
+          cargo_type?: string
           category?: string | null
           code?: string | null
           contains_battery?: boolean
           created_at?: string
+          default_packaging?: string
+          dg_class?: string | null
           english_name?: string | null
           hs_code?: string | null
           id?: string
@@ -80,14 +89,20 @@ export type Database = {
           metadata?: Json
           name: string
           notes?: string | null
+          special_handling_codes?: string[]
           status?: Database["public"]["Enums"]["record_status"]
+          temperature_range?: string | null
+          un_number?: string | null
           updated_at?: string
         }
         Update: {
+          cargo_type?: string
           category?: string | null
           code?: string | null
           contains_battery?: boolean
           created_at?: string
+          default_packaging?: string
+          dg_class?: string | null
           english_name?: string | null
           hs_code?: string | null
           id?: string
@@ -96,7 +111,10 @@ export type Database = {
           metadata?: Json
           name?: string
           notes?: string | null
+          special_handling_codes?: string[]
           status?: Database["public"]["Enums"]["record_status"]
+          temperature_range?: string | null
+          un_number?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -110,6 +128,8 @@ export type Database = {
           id: string
           is_default: boolean
           last_used_at: string | null
+          package_type: string | null
+          special_instructions: string | null
           status: Database["public"]["Enums"]["record_status"]
           updated_at: string
           usage_count: number
@@ -122,6 +142,8 @@ export type Database = {
           id?: string
           is_default?: boolean
           last_used_at?: string | null
+          package_type?: string | null
+          special_instructions?: string | null
           status?: Database["public"]["Enums"]["record_status"]
           updated_at?: string
           usage_count?: number
@@ -134,6 +156,8 @@ export type Database = {
           id?: string
           is_default?: boolean
           last_used_at?: string | null
+          package_type?: string | null
+          special_instructions?: string | null
           status?: Database["public"]["Enums"]["record_status"]
           updated_at?: string
           usage_count?: number
@@ -202,33 +226,39 @@ export type Database = {
       }
       customer_parties: {
         Row: {
+          account_number: string | null
           created_at: string
           customer_id: string
           destination_id: string | null
           id: string
           is_default: boolean
+          notes: string | null
           party_id: string
           role: Database["public"]["Enums"]["party_role"]
           status: Database["public"]["Enums"]["record_status"]
           updated_at: string
         }
         Insert: {
+          account_number?: string | null
           created_at?: string
           customer_id: string
           destination_id?: string | null
           id?: string
           is_default?: boolean
+          notes?: string | null
           party_id: string
           role: Database["public"]["Enums"]["party_role"]
           status?: Database["public"]["Enums"]["record_status"]
           updated_at?: string
         }
         Update: {
+          account_number?: string | null
           created_at?: string
           customer_id?: string
           destination_id?: string | null
           id?: string
           is_default?: boolean
+          notes?: string | null
           party_id?: string
           role?: Database["public"]["Enums"]["party_role"]
           status?: Database["public"]["Enums"]["record_status"]
@@ -581,12 +611,17 @@ export type Database = {
       parties: {
         Row: {
           address: string | null
+          branch_name: string | null
           city: string | null
           code: string | null
+          contact_person: string | null
+          contact_phone: string | null
           country_code: string | null
+          country_name: string | null
           created_at: string
           email: string | null
           fax: string | null
+          handling_instructions: string | null
           id: string
           metadata: Json
           name: string
@@ -600,12 +635,17 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          branch_name?: string | null
           city?: string | null
           code?: string | null
+          contact_person?: string | null
+          contact_phone?: string | null
           country_code?: string | null
+          country_name?: string | null
           created_at?: string
           email?: string | null
           fax?: string | null
+          handling_instructions?: string | null
           id?: string
           metadata?: Json
           name: string
@@ -619,12 +659,17 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          branch_name?: string | null
           city?: string | null
           code?: string | null
+          contact_person?: string | null
+          contact_phone?: string | null
           country_code?: string | null
+          country_name?: string | null
           created_at?: string
           email?: string | null
           fax?: string | null
+          handling_instructions?: string | null
           id?: string
           metadata?: Json
           name?: string

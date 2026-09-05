@@ -2,16 +2,16 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Star, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
-  archiveCustomerAction,
+  deleteCustomersAction,
   linkCommodityAction,
   linkDriverPreferenceAction,
   linkPartyAction,
   linkVehiclePreferenceAction,
-  restoreCustomerAction,
   setDefaultCommodityAction,
   setDefaultDriverPreferenceAction,
   setDefaultPartyAction,
@@ -28,7 +28,9 @@ import {
   upsertCustomerEsidProfileAction,
 } from "@/app/(app)/customers/actions";
 import { useProfile } from "@/components/providers/profile-provider";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { DetailEditHint, EditRowButton } from "@/components/shared/edit-row-actions";
+import { EntitySelect } from "@/components/shared/entity-select";
 import { IconActionButton } from "@/components/shared/icon-action-button";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
@@ -89,6 +91,7 @@ type CustomerRecord = Tables<"customers">;
 
 export function CustomerDetailClient({ customerId }: CustomerDetailClientProps) {
   const { role } = useProfile();
+  const router = useRouter();
   const { data: customer, isLoading, refetch } = useCustomer(customerId);
   const shippers = useCustomerShippers(customerId);
   const consignees = useCustomerConsignees(customerId);
@@ -101,6 +104,7 @@ export function CustomerDetailClient({ customerId }: CustomerDetailClientProps) 
   const [saving, setSaving] = useState(false);
   const [customerType, setCustomerType] = useState<string>("");
   const [status, setStatus] = useState<string>("ACTIVE");
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -142,17 +146,14 @@ export function CustomerDetailClient({ customerId }: CustomerDetailClientProps) 
     refetch();
   }
 
-  async function handleArchive() {
-    const result =
-      record.status === "ARCHIVED"
-        ? await restoreCustomerAction(customerId)
-        : await archiveCustomerAction(customerId);
+  async function handleDelete() {
+    const result = await deleteCustomersAction([customerId]);
     if (result.error) {
       toast.error(result.error);
       return;
     }
-    toast.success(record.status === "ARCHIVED" ? "Đã restore" : "Đã archive");
-    refetch();
+    toast.success("Đã xóa vĩnh viễn customer");
+    router.push("/customers");
   }
 
   return (
@@ -172,14 +173,28 @@ export function CustomerDetailClient({ customerId }: CustomerDetailClientProps) 
           </div>
           <p className="font-mono text-sm text-muted-foreground">{record.code}</p>
         </div>
-        {canPerform(role, "archive") ? (
-          <Button variant="outline" onClick={handleArchive}>
-            {record.status === "ARCHIVED" ? "Restore" : "Archive"}
+        {canPerform(role, "delete") ? (
+          <Button
+            variant="outline"
+            onClick={() => setDeleteOpen(true)}
+            className="text-destructive"
+          >
+            Xóa vĩnh viễn
           </Button>
         ) : null}
       </div>
 
       <DetailEditHint canEdit={canWrite(role)} />
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={`Xóa vĩnh viễn customer "${record.code} — ${record.name}"`}
+        description="Thao tác này xóa hẳn khỏi hệ thống, không thể khôi phục. Quan hệ liên kết cũng bị xóa."
+        confirmLabel="Xóa vĩnh viễn"
+        variant="destructive"
+        onConfirm={handleDelete}
+      />
 
       <Tabs defaultValue="overview">
         <TabsList>
@@ -507,54 +522,39 @@ function EsidProfileForm({
             </div>
             <div className="flex flex-col gap-2">
               <Label>Origin IATA mặc định</Label>
-              <Select value={originId || undefined} onValueChange={(v) => setOriginId(v ?? "")}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Chọn origin (thường SGN)" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(destinations.data ?? []).map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.iata_code} — {d.city_name ?? d.country_code}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <EntitySelect
+                value={originId}
+                onValueChange={setOriginId}
+                placeholder="Chọn origin (thường SGN)"
+                options={(destinations.data ?? []).map((d) => ({
+                  value: d.id,
+                  label: `${d.iata_code} — ${d.city_name ?? d.country_code}`,
+                }))}
+              />
             </div>
             <div className="flex flex-col gap-2">
               <Label>Agent mặc định</Label>
-              <Select
-                value={agentPartyId || undefined}
-                onValueChange={(v) => setAgentPartyId(v ?? "")}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Chọn party Agent" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(parties.data ?? []).map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <EntitySelect
+                value={agentPartyId}
+                onValueChange={setAgentPartyId}
+                placeholder="Chọn party Agent"
+                options={(parties.data ?? []).map((p) => ({
+                  value: p.id,
+                  label: p.name,
+                }))}
+              />
             </div>
             <div className="flex flex-col gap-2 md:col-span-2">
               <Label>Notify mặc định (optional)</Label>
-              <Select
-                value={notifyPartyId || undefined}
-                onValueChange={(v) => setNotifyPartyId(v ?? "")}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Chọn party Notify" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(parties.data ?? []).map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <EntitySelect
+                value={notifyPartyId}
+                onValueChange={setNotifyPartyId}
+                placeholder="Chọn party Notify"
+                options={(parties.data ?? []).map((p) => ({
+                  value: p.id,
+                  label: p.name,
+                }))}
+              />
             </div>
             <label className="flex items-center gap-2 text-sm">
               <input
@@ -608,7 +608,18 @@ function PartyRelationTab({
   rows: Array<{
     id: string;
     is_default: boolean;
-    party: { id: string; name: string; address: string | null };
+    account_number?: string | null;
+    notes?: string | null;
+    party: {
+      id: string;
+      name: string;
+      address: string | null;
+      branch_name?: string | null;
+      contact_person?: string | null;
+      contact_phone?: string | null;
+      phone?: string | null;
+      tax_code?: string | null;
+    };
     destination: { id: string; iata_code: string } | null;
   }>;
   loading: boolean;
@@ -621,32 +632,48 @@ function PartyRelationTab({
   const [mode, setMode] = useState<"existing" | "new">("existing");
   const [partyId, setPartyId] = useState("");
   const [destinationId, setDestinationId] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [relationNotes, setRelationNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [editRow, setEditRow] = useState<(typeof rows)[number] | null>(null);
   const [editPartyId, setEditPartyId] = useState("");
   const [editDestinationId, setEditDestinationId] = useState("");
+  const [editAccountNumber, setEditAccountNumber] = useState("");
+  const [editRelationNotes, setEditRelationNotes] = useState("");
   const [editIsDefault, setEditIsDefault] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
+  const [unlinkTarget, setUnlinkTarget] = useState<{ id: string; name: string } | null>(null);
 
   function openEdit(row: (typeof rows)[number]) {
     setEditRow(row);
     setEditPartyId(row.party.id);
     setEditDestinationId(row.destination?.id ?? "");
+    setEditAccountNumber(row.account_number ?? "");
+    setEditRelationNotes(row.notes ?? "");
     setEditIsDefault(row.is_default);
   }
 
   async function handleLink(formData: FormData) {
+    if (mode === "existing" && !partyId) {
+      toast.error("Chọn party từ danh mục Master");
+      return;
+    }
     setSaving(true);
     const result = await linkPartyAction({
       customer_id: customerId,
       role,
       party_id: mode === "existing" ? partyId : undefined,
       destination_id: role === "CONSIGNEE" && destinationId ? destinationId : null,
+      account_number: accountNumber || null,
+      notes: relationNotes || null,
       new_party:
         mode === "new"
           ? {
               name: String(formData.get("party_name") ?? ""),
+              tax_code: String(formData.get("party_tax_code") ?? ""),
               address: String(formData.get("party_address") ?? ""),
+              contact_person: String(formData.get("party_contact_person") ?? ""),
+              contact_phone: String(formData.get("party_contact_phone") ?? ""),
               phone: String(formData.get("party_phone") ?? ""),
               email: String(formData.get("party_email") ?? ""),
             }
@@ -659,6 +686,10 @@ function PartyRelationTab({
     }
     toast.success("Đã thêm party");
     setOpen(false);
+    setPartyId("");
+    setDestinationId("");
+    setAccountNumber("");
+    setRelationNotes("");
     onChanged();
   }
 
@@ -673,6 +704,8 @@ function PartyRelationTab({
       customer_id: customerId,
       party_id: editPartyId,
       destination_id: role === "CONSIGNEE" && editDestinationId ? editDestinationId : null,
+      account_number: editAccountNumber || null,
+      notes: editRelationNotes || null,
       is_default: editIsDefault,
     });
     setEditSaving(false);
@@ -685,9 +718,9 @@ function PartyRelationTab({
     onChanged();
   }
 
-  async function handleUnlink(relationId: string, name: string) {
-    if (!confirm(`Gỡ liên kết party "${name}"?`)) return;
-    const result = await unlinkPartyAction(relationId, customerId);
+  async function executeUnlink() {
+    if (!unlinkTarget) return;
+    const result = await unlinkPartyAction(unlinkTarget.id, customerId);
     if (result.error) toast.error(result.error);
     else {
       toast.success("Đã gỡ liên kết");
@@ -709,12 +742,12 @@ function PartyRelationTab({
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-base">
           {role === "SHIPPER"
-            ? "Shippers"
+            ? "Danh sách Người Gửi (Shippers)"
             : role === "CONSIGNEE"
-              ? "Consignees"
+              ? "Danh sách Người Nhận (Consignees)"
               : role === "AGENT"
-                ? "Agents (ESID)"
-                : "Notify parties"}
+                ? "Danh sách Đại Lý Khai Báo (Agents)"
+                : "Bên Nhận Thông Báo (Notify Parties)"}
         </CardTitle>
         {canEdit ? (
           <Dialog open={open} onOpenChange={setOpen}>
@@ -728,67 +761,114 @@ function PartyRelationTab({
                     ? "Agent"
                     : "Notify"}
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Thêm {role}</DialogTitle>
+                <DialogTitle>Thêm {role} cho Khách Hàng</DialogTitle>
               </DialogHeader>
               <div className="flex gap-2">
                 <Button type="button" size="sm" variant={mode === "existing" ? "default" : "outline"} onClick={() => setMode("existing")}>
-                  Chọn có sẵn
+                  Chọn từ danh mục Master
                 </Button>
                 <Button type="button" size="sm" variant={mode === "new" ? "default" : "outline"} onClick={() => setMode("new")}>
-                  Tạo mới
+                  Tạo mới Party
                 </Button>
               </div>
-              <form action={handleLink} className="flex flex-col gap-3">
+              <form action={handleLink} className="grid gap-3 sm:grid-cols-2">
                 {mode === "existing" ? (
-                  <div className="flex flex-col gap-2">
-                    <Label>Party</Label>
-                    <Select value={partyId} onValueChange={(v) => setPartyId(v ?? "")}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Chọn party" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(parties.data ?? []).map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="flex flex-col gap-2 sm:col-span-2">
+                    <Label>Chọn Party có sẵn *</Label>
+                    <EntitySelect
+                      value={partyId}
+                      onValueChange={setPartyId}
+                      placeholder="Chọn party trong hệ thống..."
+                      options={(parties.data ?? []).map((p) => ({
+                        value: p.id,
+                        label: [p.name, p.code ? `(${p.code})` : null, p.tax_code ? `· MST: ${p.tax_code}` : null]
+                          .filter(Boolean)
+                          .join(" "),
+                      }))}
+                    />
                   </div>
                 ) : (
                   <>
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="party_name">Party Name *</Label>
-                      <Input id="party_name" name="party_name" required />
+                    <div className="flex flex-col gap-2 sm:col-span-2">
+                      <Label htmlFor="party_name">Tên Công ty / Pháp nhân *</Label>
+                      <Input id="party_name" name="party_name" placeholder="VD: SAMSUN LOGISTICS CO., LTD" required />
                     </div>
                     <div className="flex flex-col gap-2">
-                      <Label htmlFor="party_address">Address</Label>
-                      <Textarea id="party_address" name="party_address" rows={2} />
+                      <Label htmlFor="party_tax_code">Mã số thuế</Label>
+                      <Input id="party_tax_code" name="party_tax_code" placeholder="VD: 0312345678" />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="party_phone">Điện thoại cty</Label>
+                      <Input id="party_phone" name="party_phone" placeholder="VD: 028-12345678" />
+                    </div>
+                    <div className="flex flex-col gap-2 sm:col-span-2">
+                      <Label htmlFor="party_address">Địa chỉ đầy đủ (Address) *</Label>
+                      <Textarea id="party_address" name="party_address" rows={2} placeholder="Địa chỉ hiển thị trên AWB/ESID" required />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="party_contact_person">Người liên hệ</Label>
+                      <Input id="party_contact_person" name="party_contact_person" placeholder="Tên điều phối/giao nhận" />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="party_contact_phone">SĐT người liên hệ</Label>
+                      <Input id="party_contact_phone" name="party_contact_phone" placeholder="Di động" />
+                    </div>
+                    <div className="flex flex-col gap-2 sm:col-span-2">
+                      <Label htmlFor="party_email">Email nhận chứng từ</Label>
+                      <Input id="party_email" name="party_email" type="email" placeholder="docs@example.com" />
                     </div>
                   </>
                 )}
+
                 {role === "CONSIGNEE" ? (
-                  <div className="flex flex-col gap-2">
-                    <Label>Destination</Label>
-                    <Select value={destinationId} onValueChange={(v) => setDestinationId(v ?? "")}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Chọn IATA (optional)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(destinations.data ?? []).map((d) => (
-                          <SelectItem key={d.id} value={d.id}>
-                            {d.iata_code}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="flex flex-col gap-2 sm:col-span-2">
+                    <Label>Sân bay đích (Destination IATA)</Label>
+                    <EntitySelect
+                      value={destinationId}
+                      onValueChange={setDestinationId}
+                      placeholder="Chọn mã IATA sân bay đến..."
+                      options={(destinations.data ?? []).map((d) => ({
+                        value: d.id,
+                        label: `${d.iata_code} — ${d.city_name ?? d.country_code}${d.country_name ? ` (${d.country_name})` : ""}`,
+                      }))}
+                    />
                   </div>
                 ) : null}
-                <Button type="submit" disabled={saving}>
-                  {saving ? "Đang lưu..." : "Lưu"}
-                </Button>
+
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="account_number">Mã tài khoản / Account No</Label>
+                  <Input
+                    id="account_number"
+                    value={accountNumber}
+                    onChange={(e) => setAccountNumber(e.target.value)}
+                    placeholder={
+                      role === "SHIPPER"
+                        ? "VD: SHP-ACC-001"
+                        : role === "CONSIGNEE"
+                          ? "VD: CNEE-ACC-001"
+                          : role === "AGENT"
+                            ? "VD: AGT-ACC-001"
+                            : "VD: NTY-ACC-001"
+                    }
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="relation_notes">Ghi chú riêng cho khách hàng này</Label>
+                  <Input
+                    id="relation_notes"
+                    value={relationNotes}
+                    onChange={(e) => setRelationNotes(e.target.value)}
+                    placeholder="VD: Chỉ dùng cho tuyến SGN-ICN"
+                  />
+                </div>
+
+                <div className="sm:col-span-2 pt-2">
+                  <Button type="submit" className="w-full" disabled={saving}>
+                    {saving ? "Đang lưu..." : "Lưu quan hệ"}
+                  </Button>
+                </div>
               </form>
             </DialogContent>
           </Dialog>
@@ -798,16 +878,18 @@ function PartyRelationTab({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Party</TableHead>
+              <TableHead>Party / Pháp nhân</TableHead>
+              <TableHead>Địa chỉ & Liên hệ</TableHead>
               {role === "CONSIGNEE" ? <TableHead>Destination</TableHead> : null}
-              <TableHead>Default</TableHead>
-              {canEdit ? <TableHead className="w-40">Thao tác</TableHead> : null}
+              <TableHead>Mã TK / Account</TableHead>
+              <TableHead>Mặc định</TableHead>
+              {canEdit ? <TableHead className="w-40 text-right">Thao tác</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={4}>
+                <TableCell colSpan={role === "CONSIGNEE" ? 6 : 5}>
                   <Skeleton className="h-4 w-full" />
                 </TableCell>
               </TableRow>
@@ -815,28 +897,58 @@ function PartyRelationTab({
               rows.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell>
-                    <div className="font-medium">{row.party.name}</div>
-                    <div className="text-xs text-muted-foreground">{row.party.address}</div>
+                    <div className="font-semibold text-sm">{row.party.name}</div>
+                    <div className="text-xs text-muted-foreground font-mono">
+                      {row.party.tax_code ? `MST: ${row.party.tax_code}` : ""}
+                      {row.party.branch_name ? ` · ${row.party.branch_name}` : ""}
+                    </div>
+                  </TableCell>
+                  <TableCell className="max-w-xs">
+                    <div className="text-xs text-muted-foreground line-clamp-2">{row.party.address || "—"}</div>
+                    {row.party.contact_person ? (
+                      <div className="text-xs text-primary font-medium mt-0.5">
+                        LH: {row.party.contact_person} {row.party.contact_phone ? `(${row.party.contact_phone})` : ""}
+                      </div>
+                    ) : null}
                   </TableCell>
                   {role === "CONSIGNEE" ? (
-                    <TableCell>{row.destination?.iata_code ?? "—"}</TableCell>
-                  ) : null}
-                  <TableCell>{row.is_default ? "Yes" : "—"}</TableCell>
-                  {canEdit ? (
                     <TableCell>
-                      <div className="flex flex-wrap items-center gap-1">
+                      {row.destination?.iata_code ? (
+                        <span className="font-mono font-bold bg-muted px-2 py-0.5 rounded text-xs">
+                          {row.destination.iata_code}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                  ) : null}
+                  <TableCell className="text-xs font-mono">{row.account_number || "—"}</TableCell>
+                  <TableCell>
+                    {row.is_default ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
+                        <Star className="size-3.5 fill-current" /> Mặc định
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                  {canEdit ? (
+                    <TableCell className="text-right">
+                      <div className="flex justify-end items-center gap-1">
                         <EditRowButton label={row.party.name} onClick={() => openEdit(row)} />
                         <IconActionButton
                           label="Đặt mặc định"
-                          tooltip="Đặt mặc định"
+                          tooltip="Đặt làm mặc định"
                           onClick={() => handleSetDefault(row.id)}
                         >
                           <Star />
                         </IconActionButton>
                         <IconActionButton
                           label={`Gỡ liên kết ${row.party.name}`}
-                          tooltip={`Gỡ liên kết ${row.party.name}`}
-                          onClick={() => handleUnlink(row.id, row.party.name)}
+                          tooltip="Gỡ liên kết"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => setUnlinkTarget({ id: row.id, name: row.party.name })}
                         >
                           <Trash2 />
                         </IconActionButton>
@@ -847,8 +959,8 @@ function PartyRelationTab({
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground">
-                  Chưa có dữ liệu
+                <TableCell colSpan={role === "CONSIGNEE" ? 6 : 5} className="text-center text-muted-foreground py-6">
+                  Chưa có {role.toLowerCase()} nào được liên kết
                 </TableCell>
               </TableRow>
             )}
@@ -857,56 +969,71 @@ function PartyRelationTab({
       </CardContent>
 
       <Dialog open={Boolean(editRow)} onOpenChange={(next) => !next && setEditRow(null)}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Sửa liên kết {editRow?.party.name}</DialogTitle>
+            <DialogTitle>Sửa liên kết: {editRow?.party.name}</DialogTitle>
           </DialogHeader>
           {editRow ? (
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col gap-2">
-                <Label>Party</Label>
-                <Select value={editPartyId} onValueChange={(v) => setEditPartyId(v ?? "")}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Chọn party" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(parties.data ?? []).map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="flex flex-col gap-2 sm:col-span-2">
+                <Label>Thay đổi Party liên kết</Label>
+                <EntitySelect
+                  value={editPartyId}
+                  onValueChange={setEditPartyId}
+                  placeholder="Chọn party"
+                  options={(parties.data ?? []).map((p) => ({
+                    value: p.id,
+                    label: `${p.name}${p.tax_code ? ` · MST: ${p.tax_code}` : ""}`,
+                  }))}
+                />
               </div>
               {role === "CONSIGNEE" ? (
-                <div className="flex flex-col gap-2">
-                  <Label>Destination</Label>
-                  <Select
+                <div className="flex flex-col gap-2 sm:col-span-2">
+                  <Label>Sân bay đến (Destination IATA)</Label>
+                  <EntitySelect
                     value={editDestinationId}
-                    onValueChange={(v) => setEditDestinationId(v ?? "")}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Chọn IATA (optional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(destinations.data ?? []).map((d) => (
-                        <SelectItem key={d.id} value={d.id}>
-                          {d.iata_code}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onValueChange={setEditDestinationId}
+                    placeholder="Chọn IATA..."
+                    options={(destinations.data ?? []).map((d) => ({
+                      value: d.id,
+                      label: `${d.iata_code} — ${d.city_name ?? d.country_code}`,
+                    }))}
+                  />
                 </div>
               ) : null}
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={editIsDefault}
-                  onChange={(e) => setEditIsDefault(e.target.checked)}
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="edit_account_number">Mã tài khoản (Account No)</Label>
+                <Input
+                  id="edit_account_number"
+                  value={editAccountNumber}
+                  onChange={(e) => setEditAccountNumber(e.target.value)}
+                  placeholder="VD: ACC-123"
                 />
-                Mặc định
-              </label>
-              <div className="flex gap-2">
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="edit_relation_notes">Ghi chú quan hệ</Label>
+                <Input
+                  id="edit_relation_notes"
+                  value={editRelationNotes}
+                  onChange={(e) => setEditRelationNotes(e.target.value)}
+                  placeholder="Ghi chú điều phối..."
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editIsDefault}
+                    onChange={(e) => setEditIsDefault(e.target.checked)}
+                  />
+                  Đặt làm {role.toLowerCase()} mặc định cho khách hàng này
+                </label>
+              </div>
+
+              <div className="flex gap-2 sm:col-span-2 pt-2">
                 <Button type="button" onClick={handleUpdate} disabled={editSaving}>
                   {editSaving ? "Đang lưu..." : "Lưu thay đổi"}
                 </Button>
@@ -918,6 +1045,15 @@ function PartyRelationTab({
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(unlinkTarget)}
+        onOpenChange={(v) => !v && setUnlinkTarget(null)}
+        title={`Gỡ liên kết "${unlinkTarget?.name}"?`}
+        description={`Bạn có chắc muốn gỡ liên kết ${role.toLowerCase()} này khỏi khách hàng? Dữ liệu Master Party gốc vẫn được giữ nguyên trong hệ thống.`}
+        confirmLabel="Gỡ liên kết"
+        onConfirm={executeUnlink}
+      />
     </Card>
   );
 }
@@ -934,7 +1070,16 @@ function CommodityRelationTab({
     id: string;
     is_default: boolean;
     custom_description: string | null;
-    commodity: { id: string; name: string; code: string | null };
+    package_type?: string | null;
+    special_instructions?: string | null;
+    commodity: {
+      id: string;
+      name: string;
+      code: string | null;
+      english_name?: string | null;
+      cargo_type?: string | null;
+      is_dg?: boolean;
+    };
   }>;
   loading: boolean;
   canEdit: boolean;
@@ -944,26 +1089,40 @@ function CommodityRelationTab({
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"existing" | "new">("existing");
   const [commodityId, setCommodityId] = useState("");
+  const [customDescription, setCustomDescription] = useState("");
+  const [packageType, setPackageType] = useState("");
+  const [specialInstructions, setSpecialInstructions] = useState("");
   const [saving, setSaving] = useState(false);
   const [editRow, setEditRow] = useState<(typeof rows)[number] | null>(null);
   const [editCommodityId, setEditCommodityId] = useState("");
   const [editCustomDescription, setEditCustomDescription] = useState("");
+  const [editPackageType, setEditPackageType] = useState("");
+  const [editSpecialInstructions, setEditSpecialInstructions] = useState("");
   const [editIsDefault, setEditIsDefault] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
+  const [unlinkTarget, setUnlinkTarget] = useState<{ id: string; name: string } | null>(null);
 
   function openEdit(row: (typeof rows)[number]) {
     setEditRow(row);
     setEditCommodityId(row.commodity.id);
     setEditCustomDescription(row.custom_description ?? "");
+    setEditPackageType(row.package_type ?? "");
+    setEditSpecialInstructions(row.special_instructions ?? "");
     setEditIsDefault(row.is_default);
   }
 
   async function handleLink(formData: FormData) {
+    if (mode === "existing" && !commodityId) {
+      toast.error("Chọn commodity từ danh mục Master");
+      return;
+    }
     setSaving(true);
     const result = await linkCommodityAction({
       customer_id: customerId,
       commodity_id: mode === "existing" ? commodityId : undefined,
-      custom_description: String(formData.get("custom_description") ?? "") || undefined,
+      custom_description: customDescription || undefined,
+      package_type: packageType || undefined,
+      special_instructions: specialInstructions || undefined,
       new_commodity:
         mode === "new"
           ? {
@@ -975,8 +1134,12 @@ function CommodityRelationTab({
     setSaving(false);
     if (result.error) toast.error(result.error);
     else {
-      toast.success("Đã thêm commodity");
+      toast.success("Đã thêm commodity cho khách hàng");
       setOpen(false);
+      setCommodityId("");
+      setCustomDescription("");
+      setPackageType("");
+      setSpecialInstructions("");
       onChanged();
     }
   }
@@ -992,6 +1155,8 @@ function CommodityRelationTab({
       customer_id: customerId,
       commodity_id: editCommodityId,
       custom_description: editCustomDescription || null,
+      package_type: editPackageType || null,
+      special_instructions: editSpecialInstructions || null,
       is_default: editIsDefault,
     });
     setEditSaving(false);
@@ -1004,9 +1169,9 @@ function CommodityRelationTab({
     onChanged();
   }
 
-  async function handleUnlink(relationId: string, name: string) {
-    if (!confirm(`Gỡ liên kết commodity "${name}"?`)) return;
-    const result = await unlinkCommodityAction(relationId, customerId);
+  async function executeUnlink() {
+    if (!unlinkTarget) return;
+    const result = await unlinkCommodityAction(unlinkTarget.id, customerId);
     if (result.error) toast.error(result.error);
     else {
       toast.success("Đã gỡ liên kết");
@@ -1026,59 +1191,84 @@ function CommodityRelationTab({
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-base">Commodities</CardTitle>
+        <div>
+          <CardTitle className="text-base">Danh mục Hàng Hóa Của Khách Hàng</CardTitle>
+          <p className="text-xs text-muted-foreground">Loại hàng và quy cách đóng gói thường đi cho khách hàng này</p>
+        </div>
         {canEdit ? (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger render={<Button size="sm" />}>Add Commodity</DialogTrigger>
-            <DialogContent>
+            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Thêm Commodity</DialogTitle>
+                <DialogTitle>Gán Hàng Hóa Cho Khách Hàng</DialogTitle>
               </DialogHeader>
               <div className="flex gap-2">
                 <Button type="button" size="sm" variant={mode === "existing" ? "default" : "outline"} onClick={() => setMode("existing")}>
-                  Chọn có sẵn
+                  Chọn từ Master
                 </Button>
                 <Button type="button" size="sm" variant={mode === "new" ? "default" : "outline"} onClick={() => setMode("new")}>
-                  Tạo mới
+                  Tạo nhanh Hàng Mới
                 </Button>
               </div>
-              <form action={handleLink} className="flex flex-col gap-3">
+              <form action={handleLink} className="grid gap-3 sm:grid-cols-2">
                 {mode === "existing" ? (
-                  <div className="flex flex-col gap-2">
-                    <Label>Commodity</Label>
-                    <Select value={commodityId} onValueChange={(v) => setCommodityId(v ?? "")}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Chọn commodity" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(allCommodities.data ?? []).map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.code ? `${c.code} — ` : ""}
-                            {c.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="flex flex-col gap-2 sm:col-span-2">
+                    <Label>Chọn Hàng Hóa Master *</Label>
+                    <EntitySelect
+                      value={commodityId}
+                      onValueChange={setCommodityId}
+                      placeholder="Chọn commodity trong danh mục..."
+                      options={(allCommodities.data ?? []).map((c) => ({
+                        value: c.id,
+                        label: `${c.code ? `${c.code} — ` : ""}${c.name}${c.english_name ? ` (${c.english_name})` : ""}${c.is_dg ? " · [DG]" : ""}`,
+                      }))}
+                    />
                   </div>
                 ) : (
                   <>
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="commodity_name">Name *</Label>
-                      <Input id="commodity_name" name="commodity_name" required />
+                    <div className="flex flex-col gap-2 sm:col-span-2">
+                      <Label htmlFor="commodity_name">Tên hàng hóa (Name) *</Label>
+                      <Input id="commodity_name" name="commodity_name" placeholder="VD: Hàng mẫu may mặc" required />
                     </div>
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="commodity_code">Code</Label>
-                      <Input id="commodity_code" name="commodity_code" />
+                    <div className="flex flex-col gap-2 sm:col-span-2">
+                      <Label htmlFor="commodity_code">Mã hàng (Code)</Label>
+                      <Input id="commodity_code" name="commodity_code" placeholder="VD: SAMPLE-TEXTILE" />
                     </div>
                   </>
                 )}
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="custom_description">Custom Description</Label>
-                  <Input id="custom_description" name="custom_description" />
+                <div className="flex flex-col gap-2 sm:col-span-2">
+                  <Label htmlFor="custom_description">Mô tả riêng cho khách hàng (Custom Nature of Goods)</Label>
+                  <Input
+                    id="custom_description"
+                    value={customDescription}
+                    onChange={(e) => setCustomDescription(e.target.value)}
+                    placeholder="VD: GARMENTS / SAMPLE CLOTHES (hiển thị ưu tiên khi khai báo)"
+                  />
                 </div>
-                <Button type="submit" disabled={saving}>
-                  {saving ? "Đang lưu..." : "Lưu"}
-                </Button>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="package_type">Quy cách đóng gói riêng</Label>
+                  <Input
+                    id="package_type"
+                    value={packageType}
+                    onChange={(e) => setPackageType(e.target.value)}
+                    placeholder="VD: Carton 50x40x30 / Kiện gỗ"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="special_instructions">Chỉ dẫn xử lý kho / bay</Label>
+                  <Input
+                    id="special_instructions"
+                    value={specialInstructions}
+                    onChange={(e) => setSpecialInstructions(e.target.value)}
+                    placeholder="VD: Không lật ngược, tránh ẩm"
+                  />
+                </div>
+
+                <div className="sm:col-span-2 pt-2">
+                  <Button type="submit" className="w-full" disabled={saving}>
+                    {saving ? "Đang lưu..." : "Lưu quan hệ hàng hóa"}
+                  </Button>
+                </div>
               </form>
             </DialogContent>
           </Dialog>
@@ -1088,16 +1278,17 @@ function CommodityRelationTab({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Commodity</TableHead>
-              <TableHead>Custom Description</TableHead>
-              <TableHead>Default</TableHead>
-              {canEdit ? <TableHead className="w-40">Thao tác</TableHead> : null}
+              <TableHead>Mặt hàng Master</TableHead>
+              <TableHead>Mô tả riêng (Nature of Goods)</TableHead>
+              <TableHead>Quy cách đóng gói</TableHead>
+              <TableHead>Mặc định</TableHead>
+              {canEdit ? <TableHead className="w-40 text-right">Thao tác</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={4}>
+                <TableCell colSpan={5}>
                   <Skeleton className="h-4 w-full" />
                 </TableCell>
               </TableRow>
@@ -1105,26 +1296,48 @@ function CommodityRelationTab({
               rows.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell>
-                    <div className="font-medium">{row.commodity.name}</div>
-                    <div className="text-xs text-muted-foreground">{row.commodity.code}</div>
+                    <div className="font-semibold text-sm">{row.commodity.name}</div>
+                    <div className="text-xs text-muted-foreground font-mono">
+                      {row.commodity.code ? `${row.commodity.code}` : ""}
+                      {row.commodity.english_name ? ` · ${row.commodity.english_name}` : ""}
+                      {row.commodity.is_dg ? " · [Hàng nguy hiểm]" : ""}
+                    </div>
                   </TableCell>
-                  <TableCell>{row.custom_description ?? "—"}</TableCell>
-                  <TableCell>{row.is_default ? "Yes" : "—"}</TableCell>
+                  <TableCell>
+                    <div className="text-sm">{row.custom_description || "—"}</div>
+                    {row.special_instructions ? (
+                      <div className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                        Lưu ý: {row.special_instructions}
+                      </div>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{row.package_type || "—"}</TableCell>
+                  <TableCell>
+                    {row.is_default ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
+                        <Star className="size-3.5 fill-current" /> Mặc định
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
                   {canEdit ? (
-                    <TableCell>
-                      <div className="flex flex-wrap items-center gap-1">
+                    <TableCell className="text-right">
+                      <div className="flex justify-end items-center gap-1">
                         <EditRowButton label={row.commodity.name} onClick={() => openEdit(row)} />
                         <IconActionButton
                           label="Đặt mặc định"
-                          tooltip="Đặt mặc định"
+                          tooltip="Đặt làm mặc định"
                           onClick={() => handleSetDefault(row.id)}
                         >
                           <Star />
                         </IconActionButton>
                         <IconActionButton
                           label={`Gỡ liên kết ${row.commodity.name}`}
-                          tooltip={`Gỡ liên kết ${row.commodity.name}`}
-                          onClick={() => handleUnlink(row.id, row.commodity.name)}
+                          tooltip="Gỡ liên kết"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => setUnlinkTarget({ id: row.id, name: row.commodity.name })}
                         >
                           <Trash2 />
                         </IconActionButton>
@@ -1135,8 +1348,8 @@ function CommodityRelationTab({
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground">
-                  Chưa có commodity
+                <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
+                  Chưa có mặt hàng nào được gán cho khách này
                 </TableCell>
               </TableRow>
             )}
@@ -1145,45 +1358,67 @@ function CommodityRelationTab({
       </CardContent>
 
       <Dialog open={Boolean(editRow)} onOpenChange={(next) => !next && setEditRow(null)}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Sửa commodity {editRow?.commodity.name}</DialogTitle>
+            <DialogTitle>Sửa liên kết hàng hóa: {editRow?.commodity.name}</DialogTitle>
           </DialogHeader>
           {editRow ? (
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col gap-2">
-                <Label>Commodity</Label>
-                <Select value={editCommodityId} onValueChange={(v) => setEditCommodityId(v ?? "")}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Chọn commodity" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(allCommodities.data ?? []).map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.code ? `${c.code} — ` : ""}
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="flex flex-col gap-2 sm:col-span-2">
+                <Label>Thay đổi Mặt Hàng Master</Label>
+                <EntitySelect
+                  value={editCommodityId}
+                  onValueChange={setEditCommodityId}
+                  placeholder="Chọn commodity"
+                  options={(allCommodities.data ?? []).map((c) => ({
+                    value: c.id,
+                    label: `${c.code ? `${c.code} — ` : ""}${c.name}${c.english_name ? ` (${c.english_name})` : ""}`,
+                  }))}
+                />
               </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="edit_custom_description">Custom Description</Label>
+
+              <div className="flex flex-col gap-2 sm:col-span-2">
+                <Label htmlFor="edit_custom_description">Mô tả riêng cho khách (Custom Description)</Label>
                 <Input
                   id="edit_custom_description"
                   value={editCustomDescription}
                   onChange={(e) => setEditCustomDescription(e.target.value)}
+                  placeholder="VD: GARMENTS / TEXTILE PRODUCTS"
                 />
               </div>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={editIsDefault}
-                  onChange={(e) => setEditIsDefault(e.target.checked)}
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="edit_package_type">Quy cách đóng gói</Label>
+                <Input
+                  id="edit_package_type"
+                  value={editPackageType}
+                  onChange={(e) => setEditPackageType(e.target.value)}
+                  placeholder="VD: Thùng Carton 5 lớp"
                 />
-                Mặc định
-              </label>
-              <div className="flex gap-2">
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="edit_special_instructions">Chỉ dẫn xử lý kho</Label>
+                <Input
+                  id="edit_special_instructions"
+                  value={editSpecialInstructions}
+                  onChange={(e) => setEditSpecialInstructions(e.target.value)}
+                  placeholder="VD: Hàng dễ vỡ, không đè nặng"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editIsDefault}
+                    onChange={(e) => setEditIsDefault(e.target.checked)}
+                  />
+                  Đặt làm mặt hàng mặc định cho khách hàng này
+                </label>
+              </div>
+
+              <div className="flex gap-2 sm:col-span-2 pt-2">
                 <Button type="button" onClick={handleUpdate} disabled={editSaving}>
                   {editSaving ? "Đang lưu..." : "Lưu thay đổi"}
                 </Button>
@@ -1195,6 +1430,15 @@ function CommodityRelationTab({
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(unlinkTarget)}
+        onOpenChange={(v) => !v && setUnlinkTarget(null)}
+        title={`Gỡ liên kết hàng hóa "${unlinkTarget?.name}"?`}
+        description="Bạn có chắc muốn gỡ mặt hàng này khỏi hồ sơ khách? Dữ liệu hàng hóa gốc trong Master Catalog vẫn được bảo toàn nguyên vẹn."
+        confirmLabel="Gỡ liên kết"
+        onConfirm={executeUnlink}
+      />
     </Card>
   );
 }
@@ -1302,18 +1546,15 @@ function DriverPreferenceTab({
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-2">
                   <Label>Driver</Label>
-                  <Select value={driverId} onValueChange={(v) => setDriverId(v ?? "")}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Chọn driver" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(allDrivers.data ?? []).map((d) => (
-                        <SelectItem key={d.id} value={d.id}>
-                          {d.full_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <EntitySelect
+                    value={driverId}
+                    onValueChange={setDriverId}
+                    placeholder="Chọn driver"
+                    options={(allDrivers.data ?? []).map((d) => ({
+                      value: d.id,
+                      label: d.full_name,
+                    }))}
+                  />
                 </div>
                 <Button onClick={handleLink} disabled={saving}>
                   {saving ? "Đang lưu..." : "Lưu"}
@@ -1389,18 +1630,15 @@ function DriverPreferenceTab({
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-2">
                 <Label>Driver</Label>
-                <Select value={editDriverId} onValueChange={(v) => setEditDriverId(v ?? "")}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Chọn driver" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(allDrivers.data ?? []).map((d) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        {d.full_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <EntitySelect
+                  value={editDriverId}
+                  onValueChange={setEditDriverId}
+                  placeholder="Chọn driver"
+                  options={(allDrivers.data ?? []).map((d) => ({
+                    value: d.id,
+                    label: d.full_name,
+                  }))}
+                />
               </div>
               <label className="flex items-center gap-2 text-sm">
                 <input
@@ -1529,18 +1767,15 @@ function VehiclePreferenceTab({
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-2">
                   <Label>Vehicle</Label>
-                  <Select value={vehicleId} onValueChange={(v) => setVehicleId(v ?? "")}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Chọn vehicle" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(allVehicles.data ?? []).map((v) => (
-                        <SelectItem key={v.id} value={v.id}>
-                          {v.plate_display ?? v.plate_number}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <EntitySelect
+                    value={vehicleId}
+                    onValueChange={setVehicleId}
+                    placeholder="Chọn vehicle"
+                    options={(allVehicles.data ?? []).map((v) => ({
+                      value: v.id,
+                      label: v.plate_display ?? v.plate_number,
+                    }))}
+                  />
                 </div>
                 <Button onClick={handleLink} disabled={saving}>
                   {saving ? "Đang lưu..." : "Lưu"}
@@ -1620,18 +1855,15 @@ function VehiclePreferenceTab({
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-2">
                 <Label>Vehicle</Label>
-                <Select value={editVehicleId} onValueChange={(v) => setEditVehicleId(v ?? "")}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Chọn vehicle" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(allVehicles.data ?? []).map((v) => (
-                      <SelectItem key={v.id} value={v.id}>
-                        {v.plate_display ?? v.plate_number}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <EntitySelect
+                  value={editVehicleId}
+                  onValueChange={setEditVehicleId}
+                  placeholder="Chọn vehicle"
+                  options={(allVehicles.data ?? []).map((v) => ({
+                    value: v.id,
+                    label: v.plate_display ?? v.plate_number,
+                  }))}
+                />
               </div>
               <label className="flex items-center gap-2 text-sm">
                 <input

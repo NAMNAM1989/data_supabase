@@ -47,6 +47,12 @@ export async function createCommodity(supabase: Supabase, input: CommodityInput)
       english_name: input.english_name || null,
       hs_code: input.hs_code || null,
       category: input.category || null,
+      cargo_type: input.cargo_type,
+      special_handling_codes: input.special_handling_codes ?? [],
+      temperature_range: input.temperature_range || null,
+      un_number: input.un_number || null,
+      dg_class: input.dg_class || null,
+      default_packaging: input.default_packaging,
       is_dg: input.is_dg,
       contains_battery: input.contains_battery,
       is_liquid: input.is_liquid,
@@ -73,6 +79,9 @@ export async function updateCommodity(
       english_name: input.english_name === "" ? null : input.english_name,
       hs_code: input.hs_code === "" ? null : input.hs_code,
       category: input.category === "" ? null : input.category,
+      temperature_range: input.temperature_range === "" ? null : input.temperature_range,
+      un_number: input.un_number === "" ? null : input.un_number,
+      dg_class: input.dg_class === "" ? null : input.dg_class,
       notes: input.notes === "" ? null : input.notes,
     })
     .eq("id", id)

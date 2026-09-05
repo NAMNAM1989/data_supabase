@@ -21,6 +21,23 @@ describe("autoMapColumns", () => {
     expect(mapping.name).toBe("Tên khách hàng");
     expect(mapping.email).toBe("Email");
   });
+
+  it("maps Vietnamese logistics party headers", () => {
+    const mapping = autoMapColumns("parties", ["Tên công ty", "Mã đối tác", "Mã số thuế", "Địa chỉ", "Người liên hệ"]);
+    expect(mapping.name).toBe("Tên công ty");
+    expect(mapping.code).toBe("Mã đối tác");
+    expect(mapping.tax_code).toBe("Mã số thuế");
+    expect(mapping.address).toBe("Địa chỉ");
+    expect(mapping.contact_person).toBe("Người liên hệ");
+  });
+
+  it("maps air cargo commodity headers", () => {
+    const mapping = autoMapColumns("commodities", ["Tên hàng", "Mã hàng", "Tên tiếng anh", "Mã HS"]);
+    expect(mapping.name).toBe("Tên hàng");
+    expect(mapping.code).toBe("Mã hàng");
+    expect(mapping.english_name).toBe("Tên tiếng anh");
+    expect(mapping.hs_code).toBe("Mã HS");
+  });
 });
 
 describe("buildImportPreview", () => {

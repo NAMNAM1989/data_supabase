@@ -6,6 +6,7 @@ export type PermissionAction =
   | "update"
   | "archive"
   | "restore"
+  | "delete"
   | "import"
   | "export"
   | "manage_users"
@@ -19,13 +20,23 @@ const ROLE_PERMISSIONS: Record<AppRole, ReadonlySet<PermissionAction>> = {
     "update",
     "archive",
     "restore",
+    "delete",
     "import",
     "export",
     "manage_users",
     "view_audit",
     "merge_duplicates",
   ]),
-  OPERATOR: new Set(["read", "create", "update", "import", "export"]),
+  OPERATOR: new Set([
+    "read",
+    "create",
+    "update",
+    "archive",
+    "restore",
+    "delete",
+    "import",
+    "export",
+  ]),
   VIEWER: new Set(["read", "export"]),
   INTEGRATION: new Set(["read"]),
 };

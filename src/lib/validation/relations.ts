@@ -5,6 +5,8 @@ export const linkPartySchema = z.object({
   party_id: z.string().uuid().optional(),
   role: z.enum(["SHIPPER", "CONSIGNEE", "AGENT", "NOTIFY"]),
   destination_id: z.string().uuid().optional().nullable(),
+  account_number: z.string().trim().optional().nullable(),
+  notes: z.string().trim().optional().nullable(),
   is_default: z.boolean().default(false),
   new_party: z
     .object({
@@ -12,6 +14,9 @@ export const linkPartySchema = z.object({
       address: z.string().trim().optional(),
       phone: z.string().trim().optional(),
       email: z.string().trim().optional(),
+      tax_code: z.string().trim().optional(),
+      contact_person: z.string().trim().optional(),
+      contact_phone: z.string().trim().optional(),
     })
     .optional(),
 });
@@ -21,6 +26,8 @@ export const linkCommoditySchema = z.object({
   commodity_id: z.string().uuid().optional(),
   is_default: z.boolean().default(false),
   custom_description: z.string().trim().optional(),
+  package_type: z.string().trim().optional().nullable(),
+  special_instructions: z.string().trim().optional().nullable(),
   new_commodity: z
     .object({
       name: z.string().trim().min(1),
@@ -37,6 +44,8 @@ export const updatePartyRelationSchema = z.object({
   customer_id: z.string().uuid(),
   party_id: z.string().uuid(),
   destination_id: z.string().uuid().optional().nullable(),
+  account_number: z.string().trim().optional().nullable(),
+  notes: z.string().trim().optional().nullable(),
   is_default: z.boolean().default(false),
 });
 
@@ -45,6 +54,8 @@ export const updateCommodityRelationSchema = z.object({
   customer_id: z.string().uuid(),
   commodity_id: z.string().uuid(),
   custom_description: z.string().trim().optional().nullable(),
+  package_type: z.string().trim().optional().nullable(),
+  special_instructions: z.string().trim().optional().nullable(),
   is_default: z.boolean().default(false),
 });
 

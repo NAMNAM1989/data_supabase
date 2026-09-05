@@ -12,6 +12,7 @@ import {
   restoreCustomer,
   updateCustomer,
 } from "@/lib/master-data/customers";
+import { hardDeleteByIds } from "@/lib/master-data/hard-delete";
 import { createCommodity } from "@/lib/master-data/commodities";
 import { createParty } from "@/lib/master-data/parties";
 import {
@@ -64,6 +65,14 @@ async function requireArchive() {
   const session = await getSession();
   if (!session?.profile || !canPerform(session.profile.role, "archive")) {
     throw new AppError("PERMISSION", "Bạn không có quyền archive/restore");
+  }
+  return session;
+}
+
+async function requireDelete() {
+  const session = await getSession();
+  if (!session?.profile || !canPerform(session.profile.role, "delete")) {
+    throw new AppError("PERMISSION", "Bạn không có quyền xóa");
   }
   return session;
 }
@@ -165,6 +174,30 @@ export async function restoreCustomerAction(id: string) {
   }
 }
 
+export async function deleteCustomersAction(ids: string[]) {
+  const session = await requireDelete();
+  const supabase = await createClient();
+  try {
+    const rows = await hardDeleteByIds(supabase, "customers", ids);
+    for (const row of rows) {
+      await writeAuditLog(supabase, {
+        actorUserId: session.userId,
+        action: "DELETE",
+        tableName: "customers",
+        recordId: row.id,
+        oldData: row as unknown as Json,
+      });
+      revalidatePath(`/customers/${row.id}`);
+    }
+    revalidatePath("/customers");
+    return { data: { deleted: rows.length } };
+  } catch (error) {
+    return {
+      error: error instanceof AppError ? error.message : "Không thể xóa customer",
+    };
+  }
+}
+
 export async function linkPartyAction(input: unknown) {
   await requireWrite();
   const parsed = linkPartySchema.safeParse(input);
@@ -180,15 +213,20 @@ export async function linkPartyAction(input: unknown) {
       const party = await createParty(supabase, {
         name: parsed.data.new_party.name,
         code: "",
-        tax_code: "",
+        tax_code: parsed.data.new_party.tax_code ?? "",
         address: parsed.data.new_party.address ?? "",
+        branch_name: "",
+        contact_person: parsed.data.new_party.contact_person ?? "",
+        contact_phone: parsed.data.new_party.contact_phone ?? "",
         city: "",
         state: "",
         postal_code: "",
         country_code: "",
+        country_name: "",
         phone: parsed.data.new_party.phone ?? "",
         fax: "",
         email: parsed.data.new_party.email ?? "",
+        handling_instructions: "",
         status: "ACTIVE",
         notes: "",
       });
@@ -204,6 +242,8 @@ export async function linkPartyAction(input: unknown) {
       party_id: partyId,
       role: parsed.data.role,
       destination_id: parsed.data.destination_id,
+      account_number: parsed.data.account_number,
+      notes: parsed.data.notes,
       is_default: parsed.data.is_default,
     });
 
@@ -261,11 +301,21 @@ export async function linkCommodityAction(input: unknown) {
     if (!commodityId && parsed.data.new_commodity) {
       const commodity = await createCommodity(supabase, {
         name: parsed.data.new_commodity.name,
-        code: parsed.data.new_commodity.code,
+        code: parsed.data.new_commodity.code ?? "",
+        english_name: "",
+        hs_code: "",
+        category: "",
+        cargo_type: "GENERAL",
+        special_handling_codes: [],
+        temperature_range: "",
+        un_number: "",
+        dg_class: "",
+        default_packaging: "CARTON",
         status: "ACTIVE",
         is_dg: false,
         contains_battery: false,
         is_liquid: false,
+        notes: "",
       });
       commodityId = commodity.id;
     }
@@ -279,6 +329,8 @@ export async function linkCommodityAction(input: unknown) {
       commodity_id: commodityId,
       is_default: parsed.data.is_default,
       custom_description: parsed.data.custom_description,
+      package_type: parsed.data.package_type,
+      special_instructions: parsed.data.special_instructions,
     });
 
     revalidatePath(`/customers/${parsed.data.customer_id}`);
@@ -417,6 +469,8 @@ export async function updatePartyRelationAction(input: unknown) {
     const result = await updateCustomerParty(supabase, parsed.data.relation_id, {
       party_id: parsed.data.party_id,
       destination_id: parsed.data.destination_id ?? null,
+      account_number: parsed.data.account_number ?? null,
+      notes: parsed.data.notes ?? null,
       is_default: parsed.data.is_default,
     });
     await writeAuditLog(supabase, {
@@ -449,6 +503,8 @@ export async function updateCommodityRelationAction(input: unknown) {
     const result = await updateCustomerCommodity(supabase, parsed.data.relation_id, {
       commodity_id: parsed.data.commodity_id,
       custom_description: parsed.data.custom_description ?? null,
+      package_type: parsed.data.package_type ?? null,
+      special_instructions: parsed.data.special_instructions ?? null,
       is_default: parsed.data.is_default,
     });
     await writeAuditLog(supabase, {

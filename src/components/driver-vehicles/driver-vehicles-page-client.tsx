@@ -13,6 +13,7 @@ import {
 } from "@/app/(app)/drivers/actions";
 import { useProfile } from "@/components/providers/profile-provider";
 import { EditRowButton, WriteAccessHint } from "@/components/shared/edit-row-actions";
+import { EntitySelect } from "@/components/shared/entity-select";
 import { IconActionButton } from "@/components/shared/icon-action-button";
 import { TableEmptyRow, TableErrorRow, TableLoadingRows } from "@/components/shared/table-states";
 import { Button } from "@/components/ui/button";
@@ -25,13 +26,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -160,33 +154,27 @@ export function DriverVehiclesPageClient() {
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-2">
                   <Label>Driver</Label>
-                  <Select value={driverId} onValueChange={(v) => setDriverId(v ?? "")}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Chọn driver" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(drivers.data ?? []).map((d) => (
-                        <SelectItem key={d.id} value={d.id}>
-                          {d.full_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <EntitySelect
+                    value={driverId}
+                    onValueChange={setDriverId}
+                    placeholder="Chọn driver"
+                    options={(drivers.data ?? []).map((d) => ({
+                      value: d.id,
+                      label: d.full_name,
+                    }))}
+                  />
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label>Vehicle</Label>
-                  <Select value={vehicleId} onValueChange={(v) => setVehicleId(v ?? "")}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Chọn vehicle" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(vehicles.data ?? []).map((v) => (
-                        <SelectItem key={v.id} value={v.id}>
-                          {v.plate_display ?? v.plate_number}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <EntitySelect
+                    value={vehicleId}
+                    onValueChange={setVehicleId}
+                    placeholder="Chọn vehicle"
+                    options={(vehicles.data ?? []).map((v) => ({
+                      value: v.id,
+                      label: v.plate_display ?? v.plate_number,
+                    }))}
+                  />
                 </div>
                 <Button onClick={handleAssign} disabled={saving}>
                   {saving ? "Đang lưu..." : "Gán"}
@@ -291,33 +279,27 @@ export function DriverVehiclesPageClient() {
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-2">
                 <Label>Driver</Label>
-                <Select value={editDriverId} onValueChange={(v) => setEditDriverId(v ?? "")}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Chọn driver" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(drivers.data ?? []).map((d) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        {d.full_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <EntitySelect
+                  value={editDriverId}
+                  onValueChange={setEditDriverId}
+                  placeholder="Chọn driver"
+                  options={(drivers.data ?? []).map((d) => ({
+                    value: d.id,
+                    label: d.full_name,
+                  }))}
+                />
               </div>
               <div className="flex flex-col gap-2">
                 <Label>Vehicle</Label>
-                <Select value={editVehicleId} onValueChange={(v) => setEditVehicleId(v ?? "")}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Chọn vehicle" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(vehicles.data ?? []).map((v) => (
-                      <SelectItem key={v.id} value={v.id}>
-                        {v.plate_display ?? v.plate_number}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <EntitySelect
+                  value={editVehicleId}
+                  onValueChange={setEditVehicleId}
+                  placeholder="Chọn vehicle"
+                  options={(vehicles.data ?? []).map((v) => ({
+                    value: v.id,
+                    label: v.plate_display ?? v.plate_number,
+                  }))}
+                />
               </div>
               <label className="flex items-center gap-2 text-sm">
                 <input

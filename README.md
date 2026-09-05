@@ -62,7 +62,7 @@ See `docs/` for architecture, database contract, security plan, and phase roadma
 
 - GitHub repo connected to Railway
 - Supabase project `data_supabase` (ref `cuakkgauyutapdznqhge`) with env keys
-- CI passing on `main`
+- CI passing on `master` (also watches `main` / `develop`)
 
 ### Live (production)
 

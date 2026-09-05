@@ -27,7 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { applyColumnMapping, autoMapColumns } from "@/lib/import/column-mapping";
-import { parseSpreadsheet } from "@/lib/import/parse-spreadsheet";
+import { parseCsvText, parseSpreadsheet } from "@/lib/import/parse-spreadsheet";
 import type { ImportEntityType, ImportPreviewRow, ImportRowAction } from "@/lib/import/types";
 import { canPerform } from "@/lib/auth/permissions";
 import { useSubmitLock } from "@/hooks/use-submit-lock";
@@ -126,8 +126,10 @@ export function ImportPageClient() {
     setFileName(file.name);
 
     try {
-      const buffer = await file.arrayBuffer();
-      const parsed = parseSpreadsheet(buffer);
+      const isCsv = file.name.toLowerCase().endsWith(".csv") || file.type === "text/csv";
+      const parsed = isCsv
+        ? parseCsvText(await file.text())
+        : parseSpreadsheet(await file.arrayBuffer());
       const mapping = autoMapColumns(entity, parsed.headers);
       const mappedRows = applyColumnMapping(parsed.rows, mapping);
 

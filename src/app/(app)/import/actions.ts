@@ -18,6 +18,7 @@ import { AppError } from "@/lib/errors";
 import { normalizeCustomerCode, normalizePlateNumber } from "@/lib/normalization";
 import { createClient } from "@/lib/supabase/server";
 import { CUSTOMER_TYPES } from "@/lib/validation/customer";
+import { CARGO_TYPES, DEFAULT_PACKAGINGS } from "@/lib/validation/commodity";
 import type { Json } from "@/types/database";
 
 const PARTY_LINK_ROLES = ["SHIPPER", "CONSIGNEE", "AGENT", "NOTIFY"] as const;
@@ -25,6 +26,20 @@ type PartyLinkRole = (typeof PARTY_LINK_ROLES)[number];
 
 function isPartyLinkRole(value: string): value is PartyLinkRole {
   return (PARTY_LINK_ROLES as readonly string[]).includes(value);
+}
+
+function parseCargoType(value: string | undefined): (typeof CARGO_TYPES)[number] {
+  const normalized = (value ?? "").trim().toUpperCase();
+  return (CARGO_TYPES as readonly string[]).includes(normalized)
+    ? (normalized as (typeof CARGO_TYPES)[number])
+    : "GENERAL";
+}
+
+function parseDefaultPackaging(value: string | undefined): (typeof DEFAULT_PACKAGINGS)[number] {
+  const normalized = (value ?? "").trim().toUpperCase();
+  return (DEFAULT_PACKAGINGS as readonly string[]).includes(normalized)
+    ? (normalized as (typeof DEFAULT_PACKAGINGS)[number])
+    : "CARTON";
 }
 
 async function maybeLinkImportedParty(
@@ -383,14 +398,14 @@ export async function commitImportAction(input: unknown) {
           code: row.data.code,
           english_name: row.data.english_name,
           category: row.data.category,
-          cargo_type: (row.data.cargo_type as any) || "GENERAL",
+          cargo_type: parseCargoType(row.data.cargo_type),
           special_handling_codes: row.data.special_handling_codes
             ? String(row.data.special_handling_codes).split(/[\s,]+/).filter(Boolean)
             : [],
           temperature_range: row.data.temperature_range ?? "",
           un_number: row.data.un_number ?? "",
           dg_class: row.data.dg_class ?? "",
-          default_packaging: (row.data.default_packaging as any) || "CARTON",
+          default_packaging: parseDefaultPackaging(row.data.default_packaging),
           notes: row.data.notes,
           status: "ACTIVE" as const,
           is_dg: Boolean(row.data.is_dg),

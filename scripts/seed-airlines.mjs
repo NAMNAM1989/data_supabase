@@ -26,6 +26,7 @@ const AWB_PREFIX_BY_IATA = {
   CI: "297",
   VN: "738",
   SQ: "618",
+  TR: "618",
   MH: "232",
   TG: "217",
   CX: "160",
@@ -65,6 +66,7 @@ const ICAO_BY_IATA = {
   QH: "BAV",
   VU: "VAG",
   SQ: "SIA",
+  TR: "TGW",
   MH: "MAS",
   TG: "THA",
   CX: "CPA",
@@ -105,6 +107,7 @@ const COUNTRY_BY_IATA = {
   QH: "VN",
   VU: "VN",
   SQ: "SG",
+  TR: "SG",
   MH: "MY",
   TG: "TH",
   CX: "HK",
@@ -140,6 +143,9 @@ const COUNTRY_BY_IATA = {
 
 const CARGO_ONLY = new Set(["CV", "KZ"]);
 
+/** Extra carriers not always present in ops JSON (shared AWB prefixes, etc.) */
+const EXTRA_AIRLINES = [{ prefix: "TR", name: "Scoot" }];
+
 const defaultJsonPath = resolve(
   process.env.AIRLINES_JSON ||
     resolve(process.cwd(), "../ops_aircargo/data/airlines.json"),
@@ -156,6 +162,18 @@ function loadOpsAirlines() {
     process.exit(1);
   }
   return raw;
+}
+
+function mergeAirlines(opsList) {
+  const byIata = new Map();
+  for (const item of [...opsList, ...EXTRA_AIRLINES]) {
+    const iata = String(item.prefix ?? item.iata_code ?? "")
+      .trim()
+      .toUpperCase();
+    if (!iata) continue;
+    if (!byIata.has(iata)) byIata.set(iata, item);
+  }
+  return Array.from(byIata.values());
 }
 
 function fail(label, error) {
@@ -227,7 +245,7 @@ async function upsertAirline(row) {
   return { action: "created", row: data };
 }
 
-const ops = loadOpsAirlines();
+const ops = mergeAirlines(loadOpsAirlines());
 const rows = ops.map(toRow);
 const summary = { created: [], updated: [], restored: [] };
 const withAwb = [];

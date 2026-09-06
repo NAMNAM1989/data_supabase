@@ -1,9 +1,9 @@
 # Design: Airlines AWB prefix non-unique
 
-**Status:** Draft for review  
+**Status:** Accepted  
 **Date:** 2026-09-06  
 **Repo:** `data_supabase`  
-**Related:** ADR-007, migration `20260906140000_create_airlines.sql`
+**Related:** ADR-007, migration `20260906140000_create_airlines.sql`, `20260906150000_airlines_awb_prefix_non_unique.sql`
 
 ## Problem
 

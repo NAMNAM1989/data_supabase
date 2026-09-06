@@ -152,7 +152,7 @@ Hãng bay air cargo (ADR-007). **Không** gộp với destinations (sân bay).
 | name | text | NOT NULL |
 | short_name | text | nullable — UI select |
 | icao_code | text | nullable — 3 letters |
-| awb_prefix | text | nullable — 3 digits; unique when not null |
+| awb_prefix | text | nullable — 3 digits; **not unique** (shared e.g. SQ+TR=618); indexed for lookup |
 | country_code | text | nullable — ISO 2 |
 | is_cargo_only | boolean | NOT NULL, default false |
 | notes | text | nullable |
@@ -253,7 +253,7 @@ customer_type: FORWARDER | DIRECT_SHIPPER | AGENT | OTHER
 |---|---|
 | customer.code | trim → uppercase |
 | airline.iata_code | trim → uppercase, 2 chars |
-| airline.awb_prefix | 3 digits or null |
+| airline.awb_prefix | 3 digits or null; may be shared across airlines |
 | plate_number | remove non-alphanumeric → uppercase |
 | plate_display | preserve user input |
 | email | trim → lowercase |

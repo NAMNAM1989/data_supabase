@@ -41,9 +41,6 @@ export function mapSupabaseError(error: PostgrestError | { code?: string; messag
     if (blob.includes("airlines_iata_code")) {
       return new AppError("DUPLICATE", "Mã IATA hãng bay đã tồn tại");
     }
-    if (blob.includes("airlines_awb_prefix")) {
-      return new AppError("DUPLICATE", "AWB prefix đã tồn tại");
-    }
     if (blob.includes("commodities_code")) {
       return new AppError("DUPLICATE", "Mã commodity đã tồn tại");
     }

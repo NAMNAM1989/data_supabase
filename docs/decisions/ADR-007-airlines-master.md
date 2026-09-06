@@ -19,17 +19,23 @@ ADR-001/002: master data thuộc Supabase. ADR-006: không nhét chuyến bay/AW
 
 1. Bảng mới **`airlines`** — **không** gộp vào `destinations`.
 2. Pattern giống destinations: CRUD + soft archive `status`, RLS `anon` SELECT `status = ACTIVE`.
-3. Unique: `iata_code` (2 ký tự); partial unique `awb_prefix` khi không null.
+3. Unique: chỉ **`iata_code`** (2 ký tự). `awb_prefix` **không** unique — nhiều hãng có thể cùng prefix (ví dụ SQ + TR = `618`); prefix chỉ gợi ý list, shipment bắt buộc chọn IATA.
 4. V1: MDM web + migration + seed + anon read. Consumer TECS/ops đổi schema follow-up.
+
+## Amendment (2026-09-06)
+
+V1 từng đặt partial unique trên `awb_prefix`. Đã bỏ (migration `20260906150000_airlines_awb_prefix_non_unique`) vì mâu thuẫn thực tế air cargo (subsidiary / cùng group). Spec: `docs/superpowers/specs/2026-09-06-airlines-awb-prefix-non-unique-design.md`.
 
 ## Non-goals
 
 - Không lưu `flight_number`, `flight_date`, AWB đầy đủ — thuộc shipment runtime.
 - Không bắt buộc wire TECS / `ops_aircargo` trong cùng thay đổi schema.
 - Không thay `destinations` semantics (airport).
+- Không auto-map `awb_prefix` → một hãng; không cờ `is_awb_prefix_primary`.
 
 ## Consequences
 
 - ✅ SSoT cho airline code + AWB prefix
-- ✅ TECS/ops có thể thay JSON/fallback bằng REST `airlines?status=eq.ACTIVE`
+- ✅ TECS/ops có thể thay JSON/fallback bằng REST `airlines?status=eq.ACTIVE` hoặc filter `awb_prefix=eq.618` rồi để user chọn IATA
 - ⚠️ Seed AWB prefix chỉ cover hãng hay dùng; thiếu prefix thì để null và bổ sung sau
+- ⚠️ Lookup theo prefix có thể trả về nhiều hàng — consumer không được assume 1:1

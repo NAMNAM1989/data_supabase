@@ -158,7 +158,10 @@ export function AirlinesPageClient() {
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Airlines</h1>
-          <p className="text-sm text-muted-foreground">Hãng bay / AWB prefix (air cargo)</p>
+          <p className="text-sm text-muted-foreground">
+            Hãng bay / AWB prefix (air cargo). Prefix có thể trùng giữa các hãng; định danh theo mã
+            IATA.
+          </p>
         </div>
         {canWrite(role) ? (
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -413,6 +416,10 @@ function AirlineForm({
           placeholder="297"
           maxLength={3}
         />
+        <p className="text-xs text-muted-foreground">
+          Có thể trùng (ví dụ SQ &amp; TR = 618). Shipment phải chọn IATA, không auto-map theo
+          prefix.
+        </p>
       </div>
       <div className="flex flex-col gap-2 md:col-span-2">
         <Label htmlFor="name">Name *</Label>

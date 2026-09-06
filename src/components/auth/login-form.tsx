@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 import { loginAction, type LoginState } from "@/app/(auth)/login/actions";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,14 @@ type LoginFormProps = {
 };
 
 export function LoginForm({ redirectTo }: LoginFormProps) {
+  const router = useRouter();
   const [state, formAction, isPending] = useActionState(loginAction, initialState);
+
+  useEffect(() => {
+    if (!state.redirectTo) return;
+    router.replace(state.redirectTo);
+    router.refresh();
+  }, [state.redirectTo, router]);
 
   return (
     <Card className="w-full max-w-md border-0 shadow-lg">

@@ -1,13 +1,18 @@
 "use server";
 
-import { redirect } from "next/navigation";
-
 import { createClient } from "@/lib/supabase/server";
 import { loginSchema } from "@/lib/validation/login";
 
 export type LoginState = {
   error?: string;
+  redirectTo?: string;
 };
+
+function safeRedirectPath(value: FormDataEntryValue | null | undefined) {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw.startsWith("/") || raw.startsWith("//") || raw === "/") return "/dashboard";
+  return raw;
+}
 
 export async function loginAction(
   _prevState: LoginState,
@@ -29,6 +34,7 @@ export async function loginAction(
     return { error: "Email hoặc mật khẩu không đúng" };
   }
 
-  const redirectTo = formData.get("redirect")?.toString() || "/dashboard";
-  redirect(redirectTo);
+  // Không dùng redirect() với useActionState — gây lỗi
+  // "An unexpected response was received from the server".
+  return { redirectTo: safeRedirectPath(formData.get("redirect")) };
 }

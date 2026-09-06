@@ -39,18 +39,20 @@ async function getCustomerPartiesByRole(
   customerId: string,
   role: "SHIPPER" | "CONSIGNEE" | "AGENT" | "NOTIFY",
 ) {
+  // !inner + party ACTIVE: khớp view customer_contacts (TECS sync)
   const { data, error } = await supabase
     .from("customer_parties")
     .select(
       `
       *,
-      party:parties(*),
+      party:parties!inner(*),
       destination:destinations(*)
     `,
     )
     .eq("customer_id", customerId)
     .eq("role", role)
-    .neq("status", "ARCHIVED")
+    .eq("status", "ACTIVE")
+    .eq("party.status", "ACTIVE")
     .order("is_default", { ascending: false });
 
   if (error) throw mapSupabaseError(error);
@@ -63,11 +65,12 @@ export async function getCustomerCommodities(supabase: Supabase, customerId: str
     .select(
       `
       *,
-      commodity:commodities(*)
+      commodity:commodities!inner(*)
     `,
     )
     .eq("customer_id", customerId)
-    .neq("status", "ARCHIVED")
+    .eq("status", "ACTIVE")
+    .eq("commodity.status", "ACTIVE")
     .order("is_default", { ascending: false });
 
   if (error) throw mapSupabaseError(error);
@@ -191,11 +194,12 @@ export async function getCustomerDrivers(supabase: Supabase, customerId: string)
     .select(
       `
       *,
-      driver:drivers(*)
+      driver:drivers!inner(*)
     `,
     )
     .eq("customer_id", customerId)
-    .neq("status", "ARCHIVED")
+    .eq("status", "ACTIVE")
+    .eq("driver.status", "ACTIVE")
     .order("is_default", { ascending: false });
 
   if (error) throw mapSupabaseError(error);
@@ -208,11 +212,12 @@ export async function getCustomerVehicles(supabase: Supabase, customerId: string
     .select(
       `
       *,
-      vehicle:vehicles(*)
+      vehicle:vehicles!inner(*)
     `,
     )
     .eq("customer_id", customerId)
-    .neq("status", "ARCHIVED")
+    .eq("status", "ACTIVE")
+    .eq("vehicle.status", "ACTIVE")
     .order("is_default", { ascending: false });
 
   if (error) throw mapSupabaseError(error);

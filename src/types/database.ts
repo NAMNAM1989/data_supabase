@@ -464,6 +464,54 @@ export type Database = {
           },
         ]
       }
+      airlines: {
+        Row: {
+          awb_prefix: string | null
+          country_code: string | null
+          created_at: string
+          iata_code: string
+          icao_code: string | null
+          id: string
+          is_cargo_only: boolean
+          metadata: Json
+          name: string
+          notes: string | null
+          short_name: string | null
+          status: Database["public"]["Enums"]["record_status"]
+          updated_at: string
+        }
+        Insert: {
+          awb_prefix?: string | null
+          country_code?: string | null
+          created_at?: string
+          iata_code: string
+          icao_code?: string | null
+          id?: string
+          is_cargo_only?: boolean
+          metadata?: Json
+          name: string
+          notes?: string | null
+          short_name?: string | null
+          status?: Database["public"]["Enums"]["record_status"]
+          updated_at?: string
+        }
+        Update: {
+          awb_prefix?: string | null
+          country_code?: string | null
+          created_at?: string
+          iata_code?: string
+          icao_code?: string | null
+          id?: string
+          is_cargo_only?: boolean
+          metadata?: Json
+          name?: string
+          notes?: string | null
+          short_name?: string | null
+          status?: Database["public"]["Enums"]["record_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       destinations: {
         Row: {
           city_name: string | null

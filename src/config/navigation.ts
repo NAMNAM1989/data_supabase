@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   MapPin,
   Package,
+  Plane,
   Search,
   Settings,
   Shield,
@@ -51,7 +52,10 @@ export const mainNavigation: NavGroup[] = [
   },
   {
     label: "REFERENCE",
-    items: [{ title: "Destinations", href: "/destinations", icon: MapPin }],
+    items: [
+      { title: "Destinations", href: "/destinations", icon: MapPin },
+      { title: "Airlines", href: "/airlines", icon: Plane },
+    ],
   },
   {
     label: "DATA TOOLS",

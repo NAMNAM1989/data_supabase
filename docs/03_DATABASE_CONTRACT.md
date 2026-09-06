@@ -18,6 +18,9 @@ customers ──┬── customer_parties ── parties
 
 drivers ── driver_vehicles ── vehicles
 
+airlines (standalone reference — ADR-007)
+destinations (standalone reference)
+
 profiles ── auth.users
 audit_logs (standalone)
 ```
@@ -133,10 +136,30 @@ Xem ADR-006.
 | Column | Type | Constraints |
 |---|---|---|
 | id | uuid | PK |
-| iata_code | text | NOT NULL, UNIQUE |
+| iata_code | text | NOT NULL, UNIQUE — airport IATA 3 chars |
 | city_name, country_code, country_name, region, timezone | text | nullable |
 | status | record_status | |
 | metadata | jsonb | |
+
+### 2.6b airlines
+
+Hãng bay air cargo (ADR-007). **Không** gộp với destinations (sân bay).
+
+| Column | Type | Constraints |
+|---|---|---|
+| id | uuid | PK |
+| iata_code | text | NOT NULL, UNIQUE — airline IATA 2 chars (`^[A-Z0-9]{2}$`) |
+| name | text | NOT NULL |
+| short_name | text | nullable — UI select |
+| icao_code | text | nullable — 3 letters |
+| awb_prefix | text | nullable — 3 digits; unique when not null |
+| country_code | text | nullable — ISO 2 |
+| is_cargo_only | boolean | NOT NULL, default false |
+| notes | text | nullable |
+| status | record_status | |
+| metadata | jsonb | |
+
+**RLS:** authenticated read/write (ADMIN/OPERATOR via `private.can_write()`); `anon` SELECT `status = ACTIVE`.
 
 ### 2.7 drivers
 
@@ -229,6 +252,8 @@ customer_type: FORWARDER | DIRECT_SHIPPER | AGENT | OTHER
 | Field | Rule |
 |---|---|
 | customer.code | trim → uppercase |
+| airline.iata_code | trim → uppercase, 2 chars |
+| airline.awb_prefix | 3 digits or null |
 | plate_number | remove non-alphanumeric → uppercase |
 | plate_display | preserve user input |
 | email | trim → lowercase |
@@ -268,6 +293,7 @@ Domain types extend generated types trong `src/types/`.
 | drivers.ts | getDrivers, getDriverById, createDriver, updateDriver, getDriverVehicles, assignVehicle |
 | vehicles.ts | getVehicles, getVehicleById, createVehicle, updateVehicle, getVehicleDrivers, assignDriver |
 | destinations.ts | getDestinations, createDestination |
+| airlines.ts | getAirlines, createAirline, updateAirline, archiveAirline, restoreAirline |
 | search.ts | globalSearch |
 | audit.ts | getAuditLogs, writeAuditLog |
 

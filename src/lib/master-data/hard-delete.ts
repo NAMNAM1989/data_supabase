@@ -5,6 +5,7 @@ export type HardDeleteTable =
   | "parties"
   | "commodities"
   | "destinations"
+  | "airlines"
   | "drivers"
   | "vehicles";
 
